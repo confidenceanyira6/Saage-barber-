@@ -8,6 +8,7 @@ import { Dashboard, ProviderMore } from "./Stylist";
 import { StylistExtras } from "./Extra";
 import { Feed, ProfilePage, Messages, isStylist } from "./Social";
 import { ServicesPro, Schedule } from "./Booking";
+import { ThemePicker, applyTheme } from "./theme";
 
 const P = { feed: "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z", find: "M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.3-4.3", chat: "M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z", book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", biz: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", me: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0" } as Record<string, string>;
 
@@ -37,7 +38,8 @@ export default function App() {
   useEffect(() => {
     if (!uid) { setRole(null); return; }
     (async () => {
-      const { data: p } = await supabase.from("profiles").select("role,full_name,country_code").eq("id", uid).maybeSingle();
+      const { data: p } = await supabase.from("profiles").select("role,full_name,country_code,theme").eq("id", uid).maybeSingle();
+      if (p?.theme) applyTheme(p.theme);
       setRole(p?.role ?? "customer"); setName(p?.full_name ?? session?.user.email ?? "");
       if (p && isStylist(p.role)) { const { data: pr } = await supabase.from("providers").select("id").eq("id", uid).maybeSingle(); if (!pr) await supabase.from("providers").insert({ id: uid, provider_type: p.role, business_name: p.full_name, country_code: p.country_code }); }
     })();
@@ -58,7 +60,7 @@ export default function App() {
   else if (cur === "chat") body = <Messages uid={uid} role={role} with={chatWith} clear={() => setChatWith(null)} openProfile={setViewing} />;
   else if (cur === "book") body = <Bookings uid={uid} isProvider={provider} />;
   else if (cur === "biz") body = <Business uid={uid} name={name} email={session.user.email} goBook={() => setTab("book")} />;
-  else body = settings ? <><Back go={() => setSettings(false)} />{!provider && <Wallet uid={uid} isProvider={false} />}<More uid={uid} isProvider={provider} name={name} /></> : <ProfilePage uid={uid} userId={uid} role={role} openChat={openChat} onSettings={() => setSettings(true)} />;
+  else body = settings ? <><Back go={() => setSettings(false)} /><h2>Settings</h2><ThemePicker uid={uid} />{!provider && <Wallet uid={uid} isProvider={false} />}<More uid={uid} isProvider={provider} name={name} /></> : <ProfilePage uid={uid} userId={uid} role={role} openChat={openChat} onSettings={() => setSettings(true)} />;
   return (<div className="shell">{notice && <div className="note" onClick={() => setNotice("")}>{notice}</div>}<main>{body}</main>
     <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k && !viewing ? "on" : ""} onClick={() => go(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={P[k]} /></svg><span>{l}</span></button>)}</nav></div>);
 }

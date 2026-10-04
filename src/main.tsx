@@ -1,8 +1,11 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { initTheme } from "./theme";
 import "./styles.css";
 import "./stylist.css";
 import "./extra.css";
 import "./social.css";
 import "./calendar.css";
+import "./themes.css";
+initTheme();
 createRoot(document.getElementById("root")!).render(<App />);
