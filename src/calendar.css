@@ -1,0 +1,4 @@
+.cal{margin:8px 0 12px}.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}.calh{text-align:center;color:var(--mut)}
+.day{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer;padding:0}.day:disabled{opacity:.3;cursor:default}.day.sel{background:var(--o);color:#fff;border-color:var(--o)}.day.today{border-color:var(--o)}.day.off{background:#fee2e2;color:#b91c1c}
+.day i{position:absolute;bottom:4px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--o)}.day.sel i{background:#fff}
+select{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;width:100%}
