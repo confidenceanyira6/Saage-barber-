@@ -1,0 +1,3 @@
+.bars{display:flex;align-items:flex-end;gap:8px;height:120px}.barcol{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}.barcol i{display:block;width:100%;min-height:3px;background:var(--o);border-radius:6px 6px 0 0}
+.msgs{display:flex;flex-direction:column;gap:8px;min-height:220px;max-height:calc(100vh - 330px);overflow-y:auto;margin-bottom:10px}.bubble{max-width:85%;padding:9px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);overflow-wrap:anywhere}.bubble.user{align-self:flex-end;background:var(--o);color:#fff;border-color:var(--o)}
+details summary{cursor:pointer}
