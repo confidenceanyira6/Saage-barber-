@@ -1,0 +1,6 @@
+.pic{border-radius:50%;object-fit:cover;flex:none}.ink{color:var(--ink)!important;text-align:left}.pointer{cursor:pointer}
+.post{border-bottom:1px solid var(--line);padding:12px 0}.carousel{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:6px;margin:8px 0;border-radius:12px}.carousel img{flex:none;width:100%;aspect-ratio:1;object-fit:cover;scroll-snap-align:center;border-radius:12px}
+.act{background:none;border:0;color:var(--ink);font-size:1rem;cursor:pointer;padding:4px 0}.act.on{color:var(--o)}.pa{padding:0}.cap{margin:4px 0}.cmts{margin-top:6px}.cmts p{margin:4px 0}
+.ighead{display:flex;align-items:center;gap:20px;margin:12px 0}.stats{display:flex;flex:1;justify-content:space-around;text-align:center}.stats b{display:block;font-size:1.15rem}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:12px}.pcell{aspect-ratio:1;padding:0;border:0;background:var(--soft);overflow:hidden}.pcell img{width:100%;height:100%;object-fit:cover}
+.ta{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;margin:10px 0}

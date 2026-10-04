@@ -3,16 +3,24 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib";
 import Auth, { Splash } from "./Auth";
 import { Discover } from "./Customer";
-import { Bookings, Wallet, More } from "./Shared";
+import { Bookings, Wallet, More, Back } from "./Shared";
 import { Dashboard, Manage, ProviderMore } from "./Stylist";
 import { StylistExtras } from "./Extra";
+import { Feed, ProfilePage, Messages, isStylist } from "./Social";
 
-const HOME = "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z";
-const ICON: Record<string, string> = { home: HOME, dash: HOME, book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", wallet: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", manage: "M6 6l12 12M6 18L18 6M4 4l4 4M16 16l4 4", more: "M5 12h.01M12 12h.01M19 12h.01" };
+const P = { feed: "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z", find: "M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.3-4.3", chat: "M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z", book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", biz: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", me: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0" } as Record<string, string>;
+
+function Business({ uid, name, email, goBook }: { uid: string; name: string; email?: string; goBook: () => void }) {
+  const [t, setT] = useState("dash");
+  const tabs: [string, string][] = [["dash", "Dashboard"], ["manage", "Services"], ["wallet", "Earnings"], ["tools", "Tools"]];
+  return <><div className="tabs">{tabs.map(([k, l]) => <button key={k} className={t === k ? "on" : ""} onClick={() => setT(k)}>{l}</button>)}</div>
+    {t === "dash" && <Dashboard uid={uid} go={(x) => (x === "book" ? goBook() : setT(x === "more" ? "tools" : x))} />}{t === "manage" && <Manage uid={uid} />}{t === "wallet" && <Wallet uid={uid} isProvider={true} />}{t === "tools" && <><StylistExtras uid={uid} name={name} email={email} /><ProviderMore uid={uid} name={name} /></>}</>;
+}
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined); const [role, setRole] = useState<string | null>(null); const [name, setName] = useState("");
-  const [tab, setTab] = useState("home"); const [splash, setSplash] = useState(true); const [notice, setNotice] = useState("");
+  const [tab, setTab] = useState("feed"); const [splash, setSplash] = useState(true); const [notice, setNotice] = useState("");
+  const [viewing, setViewing] = useState<string | null>(null); const [chatWith, setChatWith] = useState<string | null>(null); const [settings, setSettings] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setSplash(false), 1200);
     const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.replace(/^#/, "")), th = q.get("token_hash"), type = q.get("type");
@@ -29,17 +37,26 @@ export default function App() {
     (async () => {
       const { data: p } = await supabase.from("profiles").select("role,full_name,country_code").eq("id", uid).maybeSingle();
       setRole(p?.role ?? "customer"); setName(p?.full_name ?? session?.user.email ?? "");
-      if (p && (p.role === "male_barber" || p.role === "female_stylist")) { const { data: pr } = await supabase.from("providers").select("id").eq("id", uid).maybeSingle(); if (!pr) await supabase.from("providers").insert({ id: uid, provider_type: p.role, business_name: p.full_name, country_code: p.country_code }); }
+      if (p && isStylist(p.role)) { const { data: pr } = await supabase.from("providers").select("id").eq("id", uid).maybeSingle(); if (!pr) await supabase.from("providers").insert({ id: uid, provider_type: p.role, business_name: p.full_name, country_code: p.country_code }); }
     })();
   }, [uid]);
 
   if (session === undefined || splash) return <Splash />;
   if (!session || !uid) return <>{notice && <div className="note" style={{ margin: 16 }}>{notice}</div>}<Auth /></>;
   if (!role) return <Splash />;
-  const isProvider = role === "male_barber" || role === "female_stylist";
-  const tabs: [string, string][] = isProvider ? [["dash", "Dashboard"], ["book", "Bookings"], ["manage", "Services"], ["wallet", "Earnings"], ["more", "More"]] : [["home", "Home"], ["book", "Bookings"], ["wallet", "Wallet"], ["more", "More"]];
-  const cur = tabs.some(([k]) => k === tab) ? tab : tabs[0][0];
-  return (<div className="shell">{notice && <div className="note" onClick={() => setNotice("")}>{notice}</div>}
-    <main>{cur === "home" && <Discover uid={uid} />}{cur === "dash" && <Dashboard uid={uid} go={setTab} />}{cur === "manage" && <Manage uid={uid} />}{cur === "book" && <Bookings uid={uid} isProvider={isProvider} />}{cur === "wallet" && <Wallet uid={uid} isProvider={isProvider} />}{cur === "more" && (isProvider ? <><StylistExtras uid={uid} name={name} email={session.user.email} /><ProviderMore uid={uid} name={name} /></> : <More uid={uid} isProvider={false} name={name} />)}</main>
-    <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k ? "on" : ""} onClick={() => setTab(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[k]} /></svg><span>{l}</span></button>)}</nav></div>);
+  const provider = isStylist(role);
+  const tabs: [string, string][] = provider ? [["feed", "Feed"], ["chat", "Chat"], ["book", "Bookings"], ["biz", "Business"], ["me", "Profile"]] : [["feed", "Feed"], ["find", "Find"], ["chat", "Chat"], ["book", "Bookings"], ["me", "Profile"]];
+  const cur = tabs.some(([k]) => k === tab) ? tab : "feed";
+  const go = (k: string) => { setViewing(null); setSettings(false); setTab(k); };
+  const openChat = (id: string) => { setViewing(null); setChatWith(id); setTab("chat"); };
+  let body: React.ReactNode;
+  if (viewing) body = <ProfilePage uid={uid} userId={viewing} role={role} openChat={openChat} back={() => setViewing(null)} />;
+  else if (cur === "feed") body = <Feed uid={uid} role={role} openProfile={setViewing} />;
+  else if (cur === "find") body = <Discover uid={uid} />;
+  else if (cur === "chat") body = <Messages uid={uid} role={role} with={chatWith} clear={() => setChatWith(null)} openProfile={setViewing} />;
+  else if (cur === "book") body = <Bookings uid={uid} isProvider={provider} />;
+  else if (cur === "biz") body = <Business uid={uid} name={name} email={session.user.email} goBook={() => setTab("book")} />;
+  else body = settings ? <><Back go={() => setSettings(false)} />{!provider && <Wallet uid={uid} isProvider={false} />}<More uid={uid} isProvider={provider} name={name} /></> : <ProfilePage uid={uid} userId={uid} role={role} openChat={openChat} onSettings={() => setSettings(true)} />;
+  return (<div className="shell">{notice && <div className="note" onClick={() => setNotice("")}>{notice}</div>}<main>{body}</main>
+    <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k && !viewing ? "on" : ""} onClick={() => go(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={P[k]} /></svg><span>{l}</span></button>)}</nav></div>);
 }
