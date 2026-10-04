@@ -4,8 +4,10 @@ import { supabase } from "./lib";
 import Auth, { Splash } from "./Auth";
 import { Discover } from "./Customer";
 import { Bookings, Wallet, More } from "./Shared";
+import { Dashboard, Manage, ProviderMore } from "./Stylist";
 
-const ICON: Record<string, string> = { home: "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z", book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", wallet: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", more: "M5 12h.01M12 12h.01M19 12h.01" };
+const HOME = "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z";
+const ICON: Record<string, string> = { home: HOME, dash: HOME, book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", wallet: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", manage: "M6 6l12 12M6 18L18 6M4 4l4 4M16 16l4 4", more: "M5 12h.01M12 12h.01M19 12h.01" };
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined); const [role, setRole] = useState<string | null>(null); const [name, setName] = useState("");
@@ -34,9 +36,9 @@ export default function App() {
   if (!session || !uid) return <>{notice && <div className="note" style={{ margin: 16 }}>{notice}</div>}<Auth /></>;
   if (!role) return <Splash />;
   const isProvider = role === "male_barber" || role === "female_stylist";
-  const tabs: [string, string][] = isProvider ? [["book", "Bookings"], ["wallet", "Earnings"], ["more", "More"]] : [["home", "Home"], ["book", "Bookings"], ["wallet", "Wallet"], ["more", "More"]];
+  const tabs: [string, string][] = isProvider ? [["dash", "Dashboard"], ["book", "Bookings"], ["manage", "Services"], ["wallet", "Earnings"], ["more", "More"]] : [["home", "Home"], ["book", "Bookings"], ["wallet", "Wallet"], ["more", "More"]];
   const cur = tabs.some(([k]) => k === tab) ? tab : tabs[0][0];
   return (<div className="shell">{notice && <div className="note" onClick={() => setNotice("")}>{notice}</div>}
-    <main>{cur === "home" && <Discover uid={uid} />}{cur === "book" && <Bookings uid={uid} isProvider={isProvider} />}{cur === "wallet" && <Wallet uid={uid} isProvider={isProvider} />}{cur === "more" && <More uid={uid} isProvider={isProvider} name={name} />}</main>
-    <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k ? "on" : ""} onClick={() => setTab(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[k === "book" ? "book" : k]} /></svg><span>{l}</span></button>)}</nav></div>);
+    <main>{cur === "home" && <Discover uid={uid} />}{cur === "dash" && <Dashboard uid={uid} go={setTab} />}{cur === "manage" && <Manage uid={uid} />}{cur === "book" && <Bookings uid={uid} isProvider={isProvider} />}{cur === "wallet" && <Wallet uid={uid} isProvider={isProvider} />}{cur === "more" && (isProvider ? <ProviderMore uid={uid} name={name} /> : <More uid={uid} isProvider={false} name={name} />)}</main>
+    <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k ? "on" : ""} onClick={() => setTab(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[k]} /></svg><span>{l}</span></button>)}</nav></div>);
 }
