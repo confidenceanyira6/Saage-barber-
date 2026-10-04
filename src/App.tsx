@@ -4,17 +4,19 @@ import { supabase } from "./lib";
 import Auth, { Splash } from "./Auth";
 import { Discover } from "./Customer";
 import { Bookings, Wallet, More, Back } from "./Shared";
-import { Dashboard, Manage, ProviderMore } from "./Stylist";
+import { Dashboard, ProviderMore } from "./Stylist";
 import { StylistExtras } from "./Extra";
 import { Feed, ProfilePage, Messages, isStylist } from "./Social";
+import { ServicesPro, Schedule } from "./Booking";
 
 const P = { feed: "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z", find: "M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.3-4.3", chat: "M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z", book: "M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", biz: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l12-3v3M17 14h2", me: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0" } as Record<string, string>;
 
 function Business({ uid, name, email, goBook }: { uid: string; name: string; email?: string; goBook: () => void }) {
   const [t, setT] = useState("dash");
-  const tabs: [string, string][] = [["dash", "Dashboard"], ["manage", "Services"], ["wallet", "Earnings"], ["tools", "Tools"]];
+  const tabs: [string, string][] = [["dash", "Home"], ["services", "Styles"], ["schedule", "Calendar"], ["wallet", "Earnings"], ["tools", "Tools"]];
+  const map: Record<string, string> = { manage: "services", more: "tools" };
   return <><div className="tabs">{tabs.map(([k, l]) => <button key={k} className={t === k ? "on" : ""} onClick={() => setT(k)}>{l}</button>)}</div>
-    {t === "dash" && <Dashboard uid={uid} go={(x) => (x === "book" ? goBook() : setT(x === "more" ? "tools" : x))} />}{t === "manage" && <Manage uid={uid} />}{t === "wallet" && <Wallet uid={uid} isProvider={true} />}{t === "tools" && <><StylistExtras uid={uid} name={name} email={email} /><ProviderMore uid={uid} name={name} /></>}</>;
+    {t === "dash" && <Dashboard uid={uid} go={(x) => (x === "book" ? goBook() : setT(map[x] ?? x))} />}{t === "services" && <ServicesPro uid={uid} />}{t === "schedule" && <Schedule uid={uid} />}{t === "wallet" && <Wallet uid={uid} isProvider={true} />}{t === "tools" && <><StylistExtras uid={uid} name={name} email={email} /><ProviderMore uid={uid} name={name} /></>}</>;
 }
 
 export default function App() {
