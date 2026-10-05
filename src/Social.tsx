@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase, when, initials } from "./lib";
+import { supabase, when, initials, publicProfiles } from "./lib";
 import { Back } from "./Shared";
 
 export const isStylist = (role?: string | null) => role === "male_barber" || role === "female_stylist";
@@ -38,15 +38,17 @@ function PostCard({ post, uid, openProfile, onDeleted }: { post: any; uid: strin
 /* ---------- Compose (stylists, photos only) ---------- */
 function Compose({ uid, done, cancel }: { uid: string; done: () => void; cancel: () => void }) {
   const [files, setFiles] = useState<File[]>([]); const [cap, setCap] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
-  function pick(e: React.ChangeEvent<HTMLInputElement>) { const f = [...(e.target.files ?? [])]; if (f.some((x) => !x.type.startsWith("image/"))) return setErr("Only photos are allowed."); if (f.some((x) => x.size > 5_000_000)) return setErr("Each photo must be under 5 MB."); setErr(""); setFiles(f.slice(0, 6)); }
+  function pick(e: React.ChangeEvent<HTMLInputElement>) { const f = [...(e.target.files ?? [])]; if (f.some((x) => !x.type.startsWith("image/"))) return setErr("Only photos are allowed."); if (f.some((x) => x.size > 25_000_000)) return setErr("That photo is too large."); setErr(""); setFiles(f.slice(0, 6)); }
   async function post() {
     if (!files.length) return setErr("Choose at least one photo."); setBusy(true); setErr(""); const media: any[] = [];
-    for (const [i, f] of files.entries()) { const path = `${uid}/${Date.now()}-${i}-${f.name.replace(/[^\w.]/g, "_")}`; const up = await supabase.storage.from("posts").upload(path, f); if (up.error) { setErr(up.error.message); setBusy(false); return; } media.push({ type: "image", path }); }
-    const { error } = await supabase.from("posts").insert({ author_id: uid, body: cap.trim() || null, media }); setBusy(false); if (error) setErr(error.message); else done();
+    try {
+      for (const [i, f] of files.entries()) { const path = `${uid}/${Date.now()}-${i}.jpg`; const up = await supabase.storage.from("posts").upload(path, f, { contentType: "image/jpeg" }); if (up.error) { setErr("Photo upload failed: " + up.error.message); setBusy(false); return; } media.push({ type: "image", path }); }
+      const { error } = await supabase.from("posts").insert({ author_id: uid, body: cap.trim(), media }); setBusy(false); if (error) setErr(error.message); else done();
+    } catch (e: any) { setBusy(false); setErr("Could not post: " + (e?.message ?? "check your connection and try again")); }
   }
-  return (<><Back go={cancel} /><h2>New post</h2><label className="btn ghost" style={{ textAlign: "center", cursor: "pointer" }}>{files.length ? `${files.length} photo(s) selected` : "Choose photos (up to 6)"}<input type="file" accept="image/*" multiple hidden onChange={pick} /></label>
+  return (<><Back go={cancel} /><h2>New post</h2><label className="btn ghost" style={{ textAlign: "center", cursor: "pointer" }}>{files.length ? `${files.length} photo(s) selected` : "Choose photos (up to 6)"}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={pick} /></label>
     <div className="pgrid">{files.map((f, i) => <div key={i} className="pcell"><img src={URL.createObjectURL(f)} alt="" /></div>)}</div>
-    <textarea className="ta" rows={3} placeholder="Write a caption..." value={cap} onChange={(e) => setCap(e.target.value)} maxLength={2200} />{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={post}>{busy ? "Posting..." : "Share"}</button><p className="muted"><small>Photos only. Show your best work.</small></p></>);
+    <textarea className="ta" rows={3} placeholder="Write a caption (optional)..." value={cap} onChange={(e) => setCap(e.target.value)} maxLength={2200} />{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={post}>{busy ? "Posting..." : "Share"}</button><p className="muted"><small>Photos only. Show your best work.</small></p></>);
 }
 
 /* ---------- Feed ---------- */
@@ -68,24 +70,25 @@ export function Feed({ uid, role, openProfile }: { uid: string; role: string; op
 
 /* ---------- Instagram-style profile ---------- */
 export function ProfilePage({ uid, userId, role, openChat, back, onSettings }: { uid: string; userId: string; role: string; openChat: (id: string) => void; back?: () => void; onSettings?: () => void }) {
-  const [p, setP] = useState<any>(null); const [pv, setPv] = useState<any>(null); const [st, setSt] = useState<any>(null); const [posts, setPosts] = useState<any[] | null>(null); const [view, setView] = useState<any | null>(null); const [composing, setComposing] = useState(false); const [msg, setMsg] = useState("");
+  const [p, setP] = useState<any>(null); const [pv, setPv] = useState<any>(null); const [st, setSt] = useState<any>(null); const [posts, setPosts] = useState<any[] | null>(null); const [view, setView] = useState<any | null>(null); const [composing, setComposing] = useState(false); const [msg, setMsg] = useState(""); const [failed, setFailed] = useState(false);
   const mine = uid === userId;
   const load = async () => {
-    setP((await supabase.from("profiles").select("id,full_name,avatar_url,role").eq("id", userId).maybeSingle()).data);
+    const pr = (await publicProfiles([userId]))[userId]; if (!pr) { setFailed(true); return; } setP(pr);
     setPv((await supabase.from("providers").select("bio,city,rating_avg,rating_count,is_vip").eq("id", userId).maybeSingle()).data);
     setSt((await supabase.rpc("profile_stats", { p_user: userId })).data);
     setPosts((await supabase.from("posts").select("id,author_id,body,media,like_count,comment_count,created_at").eq("author_id", userId).eq("is_hidden", false).order("created_at", { ascending: false }).limit(60)).data ?? []);
   };
   useEffect(() => { load(); }, [userId]);
   async function follow() { const f = st?.i_follow; const r = f ? await supabase.from("follows").delete().eq("follower_id", uid).eq("followee_id", userId) : await supabase.from("follows").insert({ follower_id: uid, followee_id: userId }); if (r.error) setMsg(r.error.message); setSt((await supabase.rpc("profile_stats", { p_user: userId })).data); }
-  async function avatar(e: React.ChangeEvent<HTMLInputElement>) { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/") || f.size > 3_000_000) return setMsg("Choose a photo under 3 MB."); const path = `${uid}/avatar-${Date.now()}.jpg`; const up = await supabase.storage.from("avatars").upload(path, f); if (up.error) return setMsg(up.error.message); const r = await supabase.from("profiles").update({ avatar_url: path }).eq("id", uid); setMsg(r.error ? r.error.message : ""); load(); }
+  async function avatar(e: React.ChangeEvent<HTMLInputElement>) { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) return setMsg("Choose a photo."); const path = `${uid}/avatar-${Date.now()}.jpg`; const up = await supabase.storage.from("avatars").upload(path, f, { contentType: "image/jpeg" }); if (up.error) return setMsg(up.error.message); const r = await supabase.from("profiles").update({ avatar_url: path }).eq("id", uid); setMsg(r.error ? r.error.message : ""); load(); }
   async function openPost(x: any) { const liked = (await supabase.from("post_likes").select("post_id").eq("post_id", x.id).eq("user_id", uid)).data?.length ? true : false; setView({ ...x, author_name: p?.full_name, author_avatar: p?.avatar_url, author_role: p?.role, liked_by_me: liked }); }
   if (composing) return <Compose uid={uid} cancel={() => setComposing(false)} done={() => { setComposing(false); load(); }} />;
   if (view) return <><Back go={() => { setView(null); load(); }} /><PostCard post={view} uid={uid} openProfile={() => setView(null)} onDeleted={() => { setView(null); load(); }} /></>;
+  if (failed) return <>{back && <Back go={back} />}<p className="note err">This profile couldn't be loaded. <button className="link" onClick={() => { setFailed(false); load(); }}>Retry</button></p></>;
   if (!p) return <>{back && <Back go={back} />}<p className="muted">Loading...</p></>;
   return (<>{back && <Back go={back} />}
     <div className="row"><h2 style={{ margin: 0 }}>{p.full_name}{pv?.is_vip && <span className="vip">VIP</span>}</h2>{mine && onSettings && <button className="link" onClick={onSettings}>⚙ Settings</button>}</div>
-    <div className="ighead"><label className={mine ? "pointer" : ""}><Pic name={p.full_name} src={p.avatar_url} size={84} />{mine && <input type="file" accept="image/*" hidden onChange={avatar} />}</label>
+    <div className="ighead"><label className={mine ? "pointer" : ""}><Pic name={p.full_name} src={p.avatar_url} size={84} />{mine && <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={avatar} />}</label>
       <div className="stats"><div><b>{st?.posts ?? 0}</b><small>Posts</small></div><div><b>{st?.followers ?? 0}</b><small>Followers</small></div><div><b>{st?.following ?? 0}</b><small>Following</small></div></div></div>
     <p style={{ margin: "6px 0" }}><b>{roleLabel(p.role)}</b>{pv?.city ? ` · ${pv.city}` : ""}{pv?.rating_avg ? ` · ★ ${Number(pv.rating_avg).toFixed(1)}` : ""}</p>{pv?.bio && <p style={{ margin: "0 0 8px" }}>{pv.bio}</p>}{mine && <small className="muted">Tap your photo to change it.</small>}
     {msg && <p className="note err">{msg}</p>}
@@ -99,7 +102,7 @@ export function Messages({ uid, role, with: target, clear, openProfile }: { uid:
   const [convs, setConvs] = useState<any[] | null>(null); const [people, setPeople] = useState<Record<string, any>>({}); const [open, setOpen] = useState<any | null>(null); const [err, setErr] = useState("");
   const load = async () => {
     const { data, error } = await supabase.from("conversations").select("*").or(`customer_id.eq.${uid},provider_id.eq.${uid}`).order("last_message_at", { ascending: false }); if (error) setErr(error.message); setConvs(data ?? []);
-    const ids = [...new Set((data ?? []).map((c: any) => (c.customer_id === uid ? c.provider_id : c.customer_id)))]; if (ids.length) { const n: Record<string, any> = {}; (await supabase.from("profiles").select("id,full_name,avatar_url").in("id", ids)).data?.forEach((x: any) => (n[x.id] = x)); setPeople(n); }
+    const ids = (data ?? []).map((c: any) => (c.customer_id === uid ? c.provider_id : c.customer_id)); if (ids.length) setPeople(await publicProfiles(ids));
     return data ?? [];
   };
   useEffect(() => { (async () => {
@@ -107,7 +110,7 @@ export function Messages({ uid, role, with: target, clear, openProfile }: { uid:
     const ex = list.find((c: any) => c.customer_id === target || c.provider_id === target);
     if (ex) { setOpen(ex); clear(); return; }
     const row = isStylist(role) ? { customer_id: target, provider_id: uid } : { customer_id: uid, provider_id: target };
-    const { data, error } = await supabase.from("conversations").insert(row).select("*").single(); if (error) setErr(error.message); else { setOpen(data); const n = (await supabase.from("profiles").select("id,full_name,avatar_url").eq("id", target).maybeSingle()).data; if (n) setPeople((p) => ({ ...p, [target]: n })); } clear();
+    const { data, error } = await supabase.from("conversations").insert(row).select("*").single(); if (error) setErr("Couldn't start the chat: " + error.message); else { setOpen(data); const n = await publicProfiles([target]); setPeople((p) => ({ ...p, ...n })); } clear();
   })(); }, [target]);
   if (open) { const o = people[open.customer_id === uid ? open.provider_id : open.customer_id]; return <Thread uid={uid} conv={open} other={o} back={() => { setOpen(null); load(); }} openProfile={openProfile} />; }
   return (<><h2>Messages</h2>{err && <p className="note err">{err}</p>}{convs === null && <p className="muted">Loading...</p>}{convs && !convs.length && <p className="muted center">No chats yet. Open a profile and tap Message to start one.</p>}

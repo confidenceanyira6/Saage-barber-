@@ -18,16 +18,28 @@ async function shrink(file: File): Promise<File> {
   } catch { return file; }
 }
 
-// Every storage upload goes through here: photos are compressed first and network failures become a readable message instead of "Failed to fetch".
-const rawFrom = supabase.storage.from.bind(supabase.storage);
-(supabase.storage as any).from = (bucket: string) => {
-  const api: any = rawFrom(bucket); const up = api.upload.bind(api);
-  api.upload = async (path: string, file: any, opts?: any) => {
-    try { const f = file instanceof File && file.type.startsWith("image/") ? await shrink(file) : file; return await up(path, f, opts); }
-    catch { return { data: null, error: { message: "Upload failed - check your internet connection and try again." } }; }
+// supabase-js builds a fresh storage client on every `supabase.storage` access, so the patched client is pinned as an own property.
+// Every upload goes through it: photos are compressed first and network failures become a readable message.
+try {
+  const st: any = supabase.storage; const rawFrom = st.from.bind(st);
+  st.from = (bucket: string) => {
+    const api: any = rawFrom(bucket); const up = api.upload.bind(api);
+    api.upload = async (path: string, file: any, opts?: any) => {
+      try { const f = file instanceof File && file.type.startsWith("image/") ? await shrink(file) : file; return await up(path, f, opts); }
+      catch { return { data: null, error: { message: "Upload failed - check your internet connection and try again." } }; }
+    };
+    return api;
   };
-  return api;
-};
+  Object.defineProperty(supabase, "storage", { get: () => st, configurable: true });
+} catch { /* fall back to plain uploads */ }
+
+/** Name, photo and role of any users (regular profile reads are private; this returns only the public fields). */
+export async function publicProfiles(ids: string[]): Promise<Record<string, { id: string; full_name: string | null; avatar_url: string | null; role: string }>> {
+  const out: Record<string, any> = {}; if (!ids.length) return out;
+  const { data } = await supabase.rpc("public_profiles", { p_ids: [...new Set(ids)] });
+  (data ?? []).forEach((x: any) => (out[x.id] = x));
+  return out;
+}
 
 const MSG: Record<string, string> = {
   KYC_REQUIRED: "Verify your identity first (More > Identity verification).", INSUFFICIENT_FUNDS: "Not enough funds in your wallet.",
