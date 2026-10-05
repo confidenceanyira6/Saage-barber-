@@ -86,11 +86,12 @@ export function ProfilePage({ uid, userId, role, openChat, back, onSettings }: {
   if (view) return <><Back go={() => { setView(null); load(); }} /><PostCard post={view} uid={uid} openProfile={() => setView(null)} onDeleted={() => { setView(null); load(); }} /></>;
   if (failed) return <>{back && <Back go={back} />}<p className="note err">This profile couldn't be loaded. <button className="link" onClick={() => { setFailed(false); load(); }}>Retry</button></p></>;
   if (!p) return <>{back && <Back go={back} />}<p className="muted">Loading...</p></>;
+  const bio = p.bio || pv?.bio;
   return (<>{back && <Back go={back} />}
     <div className="row"><h2 style={{ margin: 0 }}>{p.full_name}{pv?.is_vip && <span className="vip">VIP</span>}</h2>{mine && onSettings && <button className="link" onClick={onSettings}>⚙ Settings</button>}</div>
     <div className="ighead"><label className={mine ? "pointer" : ""}><Pic name={p.full_name} src={p.avatar_url} size={84} />{mine && <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={avatar} />}</label>
       <div className="stats"><div><b>{st?.posts ?? 0}</b><small>Posts</small></div><div><b>{st?.followers ?? 0}</b><small>Followers</small></div><div><b>{st?.following ?? 0}</b><small>Following</small></div></div></div>
-    <p style={{ margin: "6px 0" }}><b>{roleLabel(p.role)}</b>{pv?.city ? ` · ${pv.city}` : ""}{pv?.rating_avg ? ` · ★ ${Number(pv.rating_avg).toFixed(1)}` : ""}</p>{pv?.bio && <p style={{ margin: "0 0 8px" }}>{pv.bio}</p>}{mine && <small className="muted">Tap your photo to change it.</small>}
+    <p style={{ margin: "6px 0" }}><b>{roleLabel(p.role)}</b>{pv?.city ? ` · ${pv.city}` : ""}{pv?.rating_avg ? ` · ★ ${Number(pv.rating_avg).toFixed(1)}` : ""}</p>{bio && <p style={{ margin: "0 0 8px" }}>{bio}</p>}{mine && !bio && <small className="muted">Tap Edit profile to add a short bio.</small>}
     {msg && <p className="note err">{msg}</p>}
     <div className="grid2">{mine ? (isStylist(role) ? <button className="btn" onClick={() => setComposing(true)}>+ New post</button> : <span />) : <button className={"btn" + (st?.i_follow ? " ghost" : "")} onClick={follow}>{st?.i_follow ? "Following" : "Follow"}</button>}{!mine && <button className="btn dark" onClick={() => openChat(userId)}>Message</button>}</div>
     <div className="pgrid">{posts?.map((x) => { const m = Array.isArray(x.media) ? x.media[0] : null; return <button key={x.id} className="pcell" onClick={() => openPost(x)}>{m ? <img src={mediaUrl(m)} alt="" loading="lazy" /> : null}</button>; })}</div>

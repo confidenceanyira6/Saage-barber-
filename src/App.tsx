@@ -4,7 +4,8 @@ import { supabase } from "./lib";
 import Auth, { Splash } from "./Auth";
 import { Discover, ProviderPage } from "./Customer";
 import { Bookings, Wallet, More, Back } from "./Shared";
-import { Dashboard, ProviderMore } from "./Stylist";
+import { ProviderMore } from "./Stylist";
+import { Dashboard } from "./Dash";
 import { StylistExtras } from "./Extra";
 import { Feed, ProfilePage, Messages, isStylist } from "./Social";
 import { ServicesPro, Schedule } from "./Booking";
@@ -16,9 +17,8 @@ const P = { feed: "M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z", fin
 function Business({ uid, name, email, goBook }: { uid: string; name: string; email?: string; goBook: () => void }) {
   const [t, setT] = useState("dash");
   const tabs: [string, string][] = [["dash", "Home"], ["services", "Styles"], ["schedule", "Calendar"], ["wallet", "Earnings"], ["tools", "Tools"]];
-  const map: Record<string, string> = { manage: "services", more: "tools" };
   return <><div className="tabs">{tabs.map(([k, l]) => <button key={k} className={t === k ? "on" : ""} onClick={() => setT(k)}>{l}</button>)}</div>
-    {t === "dash" && <Dashboard uid={uid} go={(x) => (x === "book" ? goBook() : setT(map[x] ?? x))} />}{t === "services" && <ServicesPro uid={uid} />}{t === "schedule" && <Schedule uid={uid} />}{t === "wallet" && <Wallet uid={uid} isProvider={true} />}{t === "tools" && <><StylistExtras uid={uid} name={name} email={email} /><ProviderMore uid={uid} name={name} /></>}</>;
+    {t === "dash" && <Dashboard uid={uid} go={(x) => (x === "book" ? goBook() : setT(x))} />}{t === "services" && <ServicesPro uid={uid} />}{t === "schedule" && <Schedule uid={uid} />}{t === "wallet" && <Wallet uid={uid} isProvider={true} />}{t === "tools" && <><StylistExtras uid={uid} name={name} email={email} /><ProviderMore uid={uid} name={name} /></>}</>;
 }
 
 export default function App() {
