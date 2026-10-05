@@ -7,6 +7,7 @@ export interface Loc { country: string; state: string; city: string }
 type Row = { country_code: string; state: string | null; city: string | null };
 const uniq = (xs: (string | null)[]) => [...new Map(xs.filter(Boolean).map((x) => [(x as string).toLowerCase(), x as string])).values()].sort();
 export const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+export const EDIT_PROFILE_EVENT = "saage:edit-profile";
 
 /** Country > state > town pickers built from where barbers actually are, so every choice returns results. */
 export function LocationFilters({ value, onChange }: { value: Loc; onChange: (l: Loc) => void }) {
@@ -24,9 +25,10 @@ export function LocationFilters({ value, onChange }: { value: Loc; onChange: (l:
   </div>);
 }
 
-/** Edit profile: name, 15-word bio and photo for everyone; country, state and town for barbers/stylists. */
+/** Edit-profile panel. It stays hidden until the profile page's "Edit profile" button opens it. */
 export function ProfileSetup({ uid, isProvider, onDone }: { uid: string; isProvider: boolean; onDone: () => void }) {
   const [open, setOpen] = useState(false); const [name, setName] = useState(""); const [bio, setBio] = useState(""); const [loc, setLoc] = useState<Loc>({ country: "NG", state: "", city: "" }); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
+  useEffect(() => { const f = () => { setOpen(true); window.scrollTo({ top: 0, behavior: "smooth" }); }; window.addEventListener(EDIT_PROFILE_EVENT, f); return () => window.removeEventListener(EDIT_PROFILE_EVENT, f); }, []);
   useEffect(() => { if (!open) return; supabase.from("profiles").select("full_name,bio").eq("id", uid).maybeSingle().then(({ data }) => { setName(data?.full_name ?? ""); setBio(data?.bio ?? ""); }); if (isProvider) supabase.from("providers").select("country_code,state,city").eq("id", uid).maybeSingle().then(({ data }) => data && setLoc({ country: data.country_code ?? "NG", state: data.state ?? "", city: data.city ?? "" })); }, [open]);
   async function photo(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) return setMsg("Choose a photo."); setBusy(true); setMsg("");
@@ -45,11 +47,12 @@ export function ProfileSetup({ uid, isProvider, onDone }: { uid: string; isProvi
     e.preventDefault(); setMsg(""); if (!loc.country || !loc.state.trim() || !loc.city.trim()) return setMsg("Choose your country and enter your state and town.");
     const r = await supabase.from("providers").update({ country_code: loc.country, state: loc.state.trim(), city: loc.city.trim() }).eq("id", uid); setMsg(r.error ? r.error.message : "Location saved. Customers can now find you by location.");
   }
+  if (!open) return null;
   const wc = wordCount(bio);
-  return (<div className="card"><button className="btn ghost" style={{ margin: 0 }} onClick={() => setOpen(!open)}>{open ? "Close" : "Edit profile"}</button>
-    {open && <div className="stack" style={{ marginTop: 10 }}>
+  return (<div className="card"><div className="row"><b>Edit profile</b><button className="link" onClick={() => setOpen(false)}>Close</button></div>
+    <div className="stack" style={{ marginTop: 10 }}>
       <label className="btn" style={{ textAlign: "center", cursor: "pointer", margin: 0 }}>{busy ? "Uploading..." : "Change profile photo"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={photo} disabled={busy} /></label>
       <form className="stack" onSubmit={saveInfo}><label>Name<input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} /></label><label>Bio <small className={wc > 15 ? "down" : "muted"}>({wc}/15 words)</small><textarea className="ta" rows={2} style={{ margin: 0 }} placeholder="Tell people about you in 15 words or less" value={bio} onChange={(e) => setBio(e.target.value)} /></label><button className="btn" disabled={wc > 15}>Save name &amp; bio</button></form>
       {isProvider && <form className="stack" onSubmit={saveLoc}><b>Where do you work?</b><select value={loc.country} onChange={(e) => setLoc({ ...loc, country: e.target.value })}>{COUNTRIES.map((c) => <option key={c} value={c}>{countryName(c)}</option>)}</select><input placeholder="State (e.g. Lagos)" value={loc.state} onChange={(e) => setLoc({ ...loc, state: e.target.value })} /><input placeholder="Town / city (e.g. Ikeja)" value={loc.city} onChange={(e) => setLoc({ ...loc, city: e.target.value })} /><button className="btn">Save location</button></form>}
-      {msg && <p className="note">{msg}</p>}</div>}</div>);
+      {msg && <p className="note">{msg}</p>}</div></div>);
 }

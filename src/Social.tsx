@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase, when, initials, publicProfiles } from "./lib";
 import { Back } from "./Shared";
+import { EDIT_PROFILE_EVENT } from "./Location";
 
 export const isStylist = (role?: string | null) => role === "male_barber" || role === "female_stylist";
 const roleLabel = (r?: string | null) => (r === "male_barber" ? "Male Barber" : r === "female_stylist" ? "Hairstylist" : "Customer");
@@ -11,6 +12,9 @@ export function Pic({ name, src, size = 40 }: { name?: string | null; src?: stri
   const u = avatarSrc(src);
   return u ? <img className="pic" src={u} alt={name ?? ""} style={{ width: size, height: size }} /> : <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(name)}</div>;
 }
+
+const Icon = ({ d, size = 24 }: { d: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+const I = { plus: "M12 5v14M5 12h14", menu: "M4 7h16M4 12h16M4 17h16", grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" };
 
 /* ---------- Post card ---------- */
 function PostCard({ post, uid, openProfile, onDeleted }: { post: any; uid: string; openProfile: (id: string) => void; onDeleted?: () => void }) {
@@ -68,6 +72,19 @@ export function Feed({ uid, role, openProfile }: { uid: string; role: string; op
     {rows?.map((p) => <PostCard key={p.id} post={p} uid={uid} openProfile={openProfile} onDeleted={() => load(true)} />)}{more && rows && rows.length > 0 && <button className="btn ghost" onClick={() => load(false)}>Load more</button>}</>);
 }
 
+/* ---------- "Discover people" carousel ---------- */
+function Suggested({ uid }: { uid: string }) {
+  const [rows, setRows] = useState<any[] | null>(null); const [fol, setFol] = useState<Set<string>>(new Set()); const [hide, setHide] = useState<Set<string>>(new Set()); const [err, setErr] = useState("");
+  useEffect(() => { (async () => {
+    const [s, f] = await Promise.all([supabase.rpc("search_providers", { p_limit: 12 }), supabase.from("follows").select("followee_id").eq("follower_id", uid)]);
+    const mine = new Set<string>((f.data ?? []).map((x: any) => x.followee_id)); setFol(mine); setRows((s.data ?? []).filter((x: any) => x.id !== uid && !mine.has(x.id)));
+  })(); }, [uid]);
+  async function follow(id: string) { setErr(""); const { error } = await supabase.from("follows").insert({ follower_id: uid, followee_id: id }); if (error) setErr(error.message); else setFol(new Set([...fol, id])); }
+  const list = (rows ?? []).filter((r) => !hide.has(r.id)); if (!list.length) return null;
+  return (<div className="sugg"><div className="sugghead"><b>Discover people</b></div>{err && <p className="note err">{err}</p>}
+    <div className="suggrow">{list.map((r) => <div className="suggcard" key={r.id}><button className="x" aria-label="Dismiss" onClick={() => setHide(new Set([...hide, r.id]))}>×</button><Pic name={r.business_name ?? r.full_name} src={r.avatar_url} size={84} /><b>{r.business_name ?? r.full_name}</b><small className="muted">Suggested for you</small><button className={"igb" + (fol.has(r.id) ? " on" : "")} disabled={fol.has(r.id)} onClick={() => follow(r.id)}>{fol.has(r.id) ? "Following" : "Follow"}</button></div>)}</div></div>);
+}
+
 /* ---------- Instagram-style profile ---------- */
 export function ProfilePage({ uid, userId, role, openChat, back, onSettings }: { uid: string; userId: string; role: string; openChat: (id: string) => void; back?: () => void; onSettings?: () => void }) {
   const [p, setP] = useState<any>(null); const [pv, setPv] = useState<any>(null); const [st, setSt] = useState<any>(null); const [posts, setPosts] = useState<any[] | null>(null); const [view, setView] = useState<any | null>(null); const [composing, setComposing] = useState(false); const [msg, setMsg] = useState(""); const [failed, setFailed] = useState(false);
@@ -82,19 +99,23 @@ export function ProfilePage({ uid, userId, role, openChat, back, onSettings }: {
   async function follow() { const f = st?.i_follow; const r = f ? await supabase.from("follows").delete().eq("follower_id", uid).eq("followee_id", userId) : await supabase.from("follows").insert({ follower_id: uid, followee_id: userId }); if (r.error) setMsg(r.error.message); setSt((await supabase.rpc("profile_stats", { p_user: userId })).data); }
   async function avatar(e: React.ChangeEvent<HTMLInputElement>) { const f = e.target.files?.[0]; if (!f) return; if (!f.type.startsWith("image/")) return setMsg("Choose a photo."); const path = `${uid}/avatar-${Date.now()}.jpg`; const up = await supabase.storage.from("avatars").upload(path, f, { contentType: "image/jpeg" }); if (up.error) return setMsg(up.error.message); const r = await supabase.from("profiles").update({ avatar_url: path }).eq("id", uid); setMsg(r.error ? r.error.message : ""); load(); }
   async function openPost(x: any) { const liked = (await supabase.from("post_likes").select("post_id").eq("post_id", x.id).eq("user_id", uid)).data?.length ? true : false; setView({ ...x, author_name: p?.full_name, author_avatar: p?.avatar_url, author_role: p?.role, liked_by_me: liked }); }
+  async function share() { const data = { title: p?.full_name ?? "Saage", text: `Check out ${p?.full_name ?? "this profile"} on Saage`, url: location.origin }; try { if (navigator.share) await navigator.share(data); else { await navigator.clipboard.writeText(data.url); setMsg("Link copied."); } } catch { /* cancelled */ } }
   if (composing) return <Compose uid={uid} cancel={() => setComposing(false)} done={() => { setComposing(false); load(); }} />;
   if (view) return <><Back go={() => { setView(null); load(); }} /><PostCard post={view} uid={uid} openProfile={() => setView(null)} onDeleted={() => { setView(null); load(); }} /></>;
   if (failed) return <>{back && <Back go={back} />}<p className="note err">This profile couldn't be loaded. <button className="link" onClick={() => { setFailed(false); load(); }}>Retry</button></p></>;
   if (!p) return <>{back && <Back go={back} />}<p className="muted">Loading...</p></>;
   const bio = p.bio || pv?.bio;
   return (<>{back && <Back go={back} />}
-    <div className="row"><h2 style={{ margin: 0 }}>{p.full_name}{pv?.is_vip && <span className="vip">VIP</span>}</h2>{mine && onSettings && <button className="link" onClick={onSettings}>⚙ Settings</button>}</div>
-    <div className="ighead"><label className={mine ? "pointer" : ""}><Pic name={p.full_name} src={p.avatar_url} size={84} />{mine && <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={avatar} />}</label>
-      <div className="stats"><div><b>{st?.posts ?? 0}</b><small>Posts</small></div><div><b>{st?.followers ?? 0}</b><small>Followers</small></div><div><b>{st?.following ?? 0}</b><small>Following</small></div></div></div>
-    <p style={{ margin: "6px 0" }}><b>{roleLabel(p.role)}</b>{pv?.city ? ` · ${pv.city}` : ""}{pv?.rating_avg ? ` · ★ ${Number(pv.rating_avg).toFixed(1)}` : ""}</p>{bio && <p style={{ margin: "0 0 8px" }}>{bio}</p>}{mine && !bio && <small className="muted">Tap Edit profile to add a short bio.</small>}
+    <div className="igtop"><h2>{p.full_name}{pv?.is_vip && <span className="vip">VIP</span>}</h2>
+      {mine && <div className="igicons">{isStylist(role) && <button className="igicon" aria-label="New post" onClick={() => setComposing(true)}><Icon d={I.plus} size={26} /></button>}{onSettings && <button className="igicon" aria-label="Settings" onClick={onSettings}><Icon d={I.menu} size={26} /></button>}</div>}</div>
+    <div className="ighead"><label className={"igavwrap" + (mine ? " pointer" : "")}><Pic name={p.full_name} src={p.avatar_url} size={86} />{mine && <><span className="igplus"><Icon d={I.plus} size={14} /></span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={avatar} /></>}</label>
+      <div className="stats"><div><b>{st?.posts ?? 0}</b><small>posts</small></div><div><b>{st?.followers ?? 0}</b><small>followers</small></div><div><b>{st?.following ?? 0}</b><small>following</small></div></div></div>
+    <p className="ig-name">{p.full_name}</p>{bio && <p className="ig-bio">{bio}</p>}<p className="ig-meta">{roleLabel(p.role)}{pv?.city ? ` · ${pv.city}` : ""}{pv?.rating_avg ? ` · ★ ${Number(pv.rating_avg).toFixed(1)}` : ""}</p>
     {msg && <p className="note err">{msg}</p>}
-    <div className="grid2">{mine ? (isStylist(role) ? <button className="btn" onClick={() => setComposing(true)}>+ New post</button> : <span />) : <button className={"btn" + (st?.i_follow ? " ghost" : "")} onClick={follow}>{st?.i_follow ? "Following" : "Follow"}</button>}{!mine && <button className="btn dark" onClick={() => openChat(userId)}>Message</button>}</div>
-    <div className="pgrid">{posts?.map((x) => { const m = Array.isArray(x.media) ? x.media[0] : null; return <button key={x.id} className="pcell" onClick={() => openPost(x)}>{m ? <img src={mediaUrl(m)} alt="" loading="lazy" /> : null}</button>; })}</div>
+    <div className="igbtns">{mine ? <><button className="igb" onClick={() => window.dispatchEvent(new Event(EDIT_PROFILE_EVENT))}>Edit profile</button><button className="igb" onClick={share}>Share profile</button></> : <><button className={"igb" + (st?.i_follow ? "" : " pri")} onClick={follow}>{st?.i_follow ? "Following" : "Follow"}</button><button className="igb" onClick={() => openChat(userId)}>Message</button><button className="igb sq" aria-label="Share" onClick={share}>↗</button></>}</div>
+    {mine && <Suggested uid={uid} />}
+    <div className="igtabs"><button className="on" aria-label="Posts"><Icon d={I.grid} /></button></div>
+    <div className="pgrid ig">{posts?.map((x) => { const m = Array.isArray(x.media) ? x.media[0] : null; return <button key={x.id} className="pcell" onClick={() => openPost(x)}>{m ? <img src={mediaUrl(m)} alt="" loading="lazy" /> : null}</button>; })}</div>
     {posts && !posts.length && <p className="muted center">{mine && isStylist(role) ? "Share your first photo." : "No posts yet."}</p>}</>);
 }
 
