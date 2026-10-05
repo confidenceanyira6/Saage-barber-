@@ -6,6 +6,7 @@ import "./stylist.css";
 import "./extra.css";
 import "./social.css";
 import "./calendar.css";
+import "./location.css";
 import "./themes.css";
 initTheme();
 createRoot(document.getElementById("root")!).render(<App />);

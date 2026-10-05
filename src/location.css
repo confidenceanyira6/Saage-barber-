@@ -1,0 +1,2 @@
+.locgrid{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 0}@media(min-width:480px){.locgrid{grid-template-columns:1fr 1fr 1fr}}
+.locgrid select:disabled{opacity:.5}

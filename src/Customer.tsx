@@ -3,6 +3,7 @@ import { supabase, money, when, publicProfiles } from "./lib";
 import { Back, Stars } from "./Shared";
 import { ClientTime, ClientReview, dur } from "./Booking";
 import { ProfilePage, Pic } from "./Social";
+import { LocationFilters, countryName, type Loc } from "./Location";
 
 type Step = { n: "profile" } | { n: "book" } | { n: "time"; s: any } | { n: "review"; s: any; at: Date } | { n: "done"; s: any; at: Date };
 
@@ -34,16 +35,20 @@ export function Discover({ uid, role, openChat }: { uid: string; role: string; o
 }
 
 function Search({ open }: { open: (id: string) => void }) {
-  const [q, setQ] = useState(""); const [home, setHome] = useState(false); const [max, setMax] = useState(""); const [minR, setMinR] = useState("");
+  const [q, setQ] = useState(""); const [home, setHome] = useState(false); const [max, setMax] = useState(""); const [minR, setMinR] = useState(""); const [loc, setLoc] = useState<Loc>({ country: "", state: "", city: "" });
   const [rows, setRows] = useState<any[] | null>(null); const [err, setErr] = useState("");
-  const go = async () => { setRows(null); setErr(""); const { data, error } = await supabase.rpc("search_providers", { p_query: q || null, p_home_service: home || null, p_max_price: max ? Number(max) : null, p_min_rating: minR ? Number(minR) : null, p_limit: 30 }); if (error) setErr(error.message); setRows(data ?? []); };
+  const go = async (l: Loc = loc) => { setRows(null); setErr(""); const { data, error } = await supabase.rpc("search_providers", { p_query: q.trim() || null, p_country: l.country || null, p_state: l.state || null, p_city: l.city || null, p_home_service: home || null, p_max_price: max ? Number(max) : null, p_min_rating: minR ? Number(minR) : null, p_limit: 30 }); if (error) setErr(error.message); setRows(data ?? []); };
   useEffect(() => { go(); }, []);
+  const pickLoc = (l: Loc) => { setLoc(l); go(l); };
+  const where = [loc.city, loc.state, loc.country ? countryName(loc.country) : ""].filter(Boolean).join(", ");
   return (<>
     <h2>Find your barber</h2>
-    <form className="row gap" onSubmit={(e) => { e.preventDefault(); go(); }}><input placeholder="Search stylists, services..." value={q} onChange={(e) => setQ(e.target.value)} /><button className="btn sm">Search</button></form>
-    <div className="chips"><span className={"chip" + (home ? " on" : "")} onClick={() => setHome(!home)}>Home service</span><input className="mini" type="number" placeholder="Max price" value={max} onChange={(e) => setMax(e.target.value)} /><input className="mini" type="number" step="0.5" max="5" placeholder="Min rating" value={minR} onChange={(e) => setMinR(e.target.value)} /></div>
-    {err && <p className="note err">{err} <button className="link" onClick={go}>Retry</button></p>}{rows === null && <p className="muted">Searching...</p>}
-    {rows && !rows.length && !err && <p className="muted center">No barbers found yet. Try different filters.</p>}
-    {rows?.map((p) => <button className="card row menu" key={p.id} onClick={() => open(p.id)}><div className="row gap"><Pic name={p.business_name ?? p.full_name} src={p.avatar_url} /><span><b>{p.business_name ?? p.full_name}</b>{p.is_vip && <span className="vip">VIP</span>}<br /><small>{p.provider_type === "male_barber" ? "Male Barber" : "Female Hairstylist"} · {p.city ?? ""}</small></span></div><span className="right"><Stars n={p.rating_avg} /><br /><small>{p.min_price != null ? "from " + money(p.min_price, p.currency_code) : ""}</small></span></button>)}
+    <form className="row gap" onSubmit={(e) => { e.preventDefault(); go(); }}><input placeholder="Search by barber name or hairstyle..." value={q} onChange={(e) => setQ(e.target.value)} /><button className="btn sm">Search</button></form>
+    <p className="muted" style={{ margin: "10px 0 0" }}><small>Don't know a name? Browse by location:</small></p>
+    <LocationFilters value={loc} onChange={pickLoc} />
+    <div className="chips"><span className={"chip" + (home ? " on" : "")} onClick={() => setHome(!home)}>Home service</span><input className="mini" type="number" placeholder="Max price" value={max} onChange={(e) => setMax(e.target.value)} /><input className="mini" type="number" step="0.5" max="5" placeholder="Min rating" value={minR} onChange={(e) => setMinR(e.target.value)} />{(loc.country || loc.state || loc.city) && <span className="chip" onClick={() => pickLoc({ country: "", state: "", city: "" })}>Clear location ×</span>}</div>
+    {err && <p className="note err">{err} <button className="link" onClick={() => go()}>Retry</button></p>}{rows === null && <p className="muted">Searching...</p>}
+    {rows && !rows.length && !err && <p className="muted center">No barbers found{where ? ` in ${where}` : ""}. Try a wider area or different filters.</p>}
+    {rows?.map((p) => <button className="card row menu" key={p.id} onClick={() => open(p.id)}><div className="row gap"><Pic name={p.business_name ?? p.full_name} src={p.avatar_url} /><span><b>{p.business_name ?? p.full_name}</b>{p.is_vip && <span className="vip">VIP</span>}<br /><small>{p.provider_type === "male_barber" ? "Male Barber" : "Female Hairstylist"} · {[p.city, p.state].filter(Boolean).join(", ")}</small></span></div><span className="right"><Stars n={p.rating_avg} /><br /><small>{p.min_price != null ? "from " + money(p.min_price, p.currency_code) : ""}</small></span></button>)}
   </>);
 }
