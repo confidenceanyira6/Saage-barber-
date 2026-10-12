@@ -9,5 +9,6 @@ import "./calendar.css";
 import "./location.css";
 import "./profile.css";
 import "./themes.css";
+import "./instagram.css";
 initTheme();
 createRoot(document.getElementById("root")!).render(<App />);

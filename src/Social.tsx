@@ -13,10 +13,17 @@ export function Pic({ name, src, size = 40 }: { name?: string | null; src?: stri
   return u ? <img className="pic" src={u} alt={name ?? ""} style={{ width: size, height: size }} /> : <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(name)}</div>;
 }
 
-const Icon = ({ d, size = 24 }: { d: string; size?: number }) => <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-const I = { plus: "M12 5v14M5 12h14", menu: "M4 7h16M4 12h16M4 17h16", grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" };
+const Icon = ({ d, size = 24, fill = false }: { d: string; size?: number; fill?: boolean }) => <svg viewBox="0 0 24 24" width={size} height={size} fill={fill ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+const I = {
+  plus: "M12 5v14M5 12h14", menu: "M4 7h16M4 12h16M4 17h16", grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  plusSq: "M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM12 8v8M8 12h8",
+  heart: "M12 21s-8-5.2-8-11a4.8 4.8 0 018-3.4A4.8 4.8 0 0120 10c0 5.8-8 11-8 11z",
+  comment: "M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z",
+  send: "M22 3L9.5 13.5M22 3l-7 18-5.5-7.5L2 9z",
+  bookmark: "M6 3h12v18l-6-4.5L6 21z",
+};
 
-/* ---------- Post card ---------- */
+/* ---------- Post card (Instagram style) ---------- */
 function PostCard({ post, uid, openProfile, onDeleted }: { post: any; uid: string; openProfile: (id: string) => void; onDeleted?: () => void }) {
   const [liked, setLiked] = useState(!!post.liked_by_me); const [likes, setLikes] = useState(post.like_count ?? 0); const [cc, setCc] = useState(post.comment_count ?? 0);
   const [open, setOpen] = useState(false); const [cm, setCm] = useState<any[]>([]); const [text, setText] = useState(""); const [err, setErr] = useState("");
@@ -29,13 +36,18 @@ function PostCard({ post, uid, openProfile, onDeleted }: { post: any; uid: strin
   async function toggle() { setOpen(!open); if (!open) loadC(); }
   async function send(e: React.FormEvent) { e.preventDefault(); const b = text.trim(); if (!b) return; setErr(""); const { error } = await supabase.from("post_comments").insert({ post_id: post.id, author_id: uid, body: b.slice(0, 1000) }); if (error) return setErr(error.message); setText(""); setCc(cc + 1); loadC(); }
   async function del() { if (!confirm("Delete this post?")) return; const { error } = await supabase.from("posts").delete().eq("id", post.id); if (error) setErr(error.message); else onDeleted?.(); }
+  async function share() { const data = { title: post.author_name ?? "Saage", text: `Check out ${post.author_name ?? "this post"} on Saage`, url: location.origin }; try { if (navigator.share) await navigator.share(data); else { await navigator.clipboard.writeText(data.url); setErr("Link copied."); } } catch { /* cancelled */ } }
   const media: any[] = Array.isArray(post.media) ? post.media : [];
   return (<div className="post">
-    <div className="row"><button className="row gap link ink" onClick={() => openProfile(post.author_id)}><Pic name={post.author_name} src={post.author_avatar} size={36} /><span><b>{post.author_name}</b><br /><small>{roleLabel(post.author_role)} · {when(post.created_at)}</small></span></button>{post.author_id === uid && <button className="link" onClick={del}>Delete</button>}</div>
-    <div className="carousel">{media.map((m, i) => <img key={i} src={mediaUrl(m)} alt="Post" loading="lazy" />)}</div>
-    <div className="row gap pa"><button className={"act" + (liked ? " on" : "")} onClick={like}>{liked ? "♥" : "♡"} {likes}</button><button className="act" onClick={toggle}>💬 {cc}</button></div>
-    {post.body && <p className="cap"><b>{post.author_name}</b> {post.body}</p>}{err && <p className="note err">{err}</p>}
+    <div className="row ph"><button className="row gap link ink" onClick={() => openProfile(post.author_id)}><span className="sring sm"><span className="in"><Pic name={post.author_name} src={post.author_avatar} size={32} /></span></span><span className="who"><b>{post.author_name}</b><br /><small>{roleLabel(post.author_role)}</small></span></button>{post.author_id === uid && <button className="link" onClick={del}>Delete</button>}</div>
+    <div className="carousel" onDoubleClick={() => { if (!liked) like(); }}>{media.map((m, i) => <img key={i} src={mediaUrl(m)} alt="Post" loading="lazy" />)}</div>
+    <div className="row gap pa"><button className={"act" + (liked ? " on" : "")} onClick={like} aria-label="Like"><Icon d={I.heart} size={26} fill={liked} /></button><button className="act" onClick={toggle} aria-label="Comments"><Icon d={I.comment} size={25} /></button><button className="act" onClick={share} aria-label="Share"><Icon d={I.send} size={25} /></button><span className="sp" />{post.author_id !== uid && <button className="act" onClick={() => openProfile(post.author_id)} aria-label="View profile and book"><Icon d={I.bookmark} size={25} /></button>}</div>
+    <p className="likes"><b>{likes} {likes === 1 ? "like" : "likes"}</b></p>
+    {post.body && <p className="cap"><b>{post.author_name}</b> {post.body}</p>}
+    {cc > 0 && !open && <button className="link vc" onClick={toggle}>View all {cc} comments</button>}
+    {err && <p className="note err">{err}</p>}
     {open && <div className="cmts">{cm.map((c) => <p key={c.id}><b>{c.author_name}</b> {c.body}</p>)}{!cm.length && <small className="muted">No comments yet.</small>}<form className="row gap" onSubmit={send}><input placeholder="Add a comment..." value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} /><button className="btn sm">Post</button></form></div>}
+    <p className="tm"><small>{when(post.created_at)}</small></p>
   </div>);
 }
 
@@ -55,21 +67,37 @@ function Compose({ uid, done, cancel }: { uid: string; done: () => void; cancel:
     <textarea className="ta" rows={3} placeholder="Write a caption (optional)..." value={cap} onChange={(e) => setCap(e.target.value)} maxLength={2200} />{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={post}>{busy ? "Posting..." : "Share"}</button><p className="muted"><small>Photos only. Show your best work.</small></p></>);
 }
 
-/* ---------- Feed ---------- */
-export function Feed({ uid, role, openProfile }: { uid: string; role: string; openProfile: (id: string) => void }) {
+/* ---------- Feed (Instagram home) ---------- */
+export function Feed({ uid, role, openProfile, openMessages }: { uid: string; role: string; openProfile: (id: string) => void; openMessages?: () => void }) {
   const [rows, setRows] = useState<any[] | null>(null); const [fol, setFol] = useState(false); const [err, setErr] = useState(""); const [more, setMore] = useState(true); const [composing, setComposing] = useState(false);
+  const [people, setPeople] = useState<any[]>([]); const [me, setMe] = useState<any>(null);
   const load = async (reset = true) => {
     const before = !reset && rows?.length ? rows[rows.length - 1].created_at : null;
     const { data, error } = await supabase.rpc("get_feed", { p_limit: 12, p_before: before, p_following_only: fol }); if (error) { setErr(error.message); setRows(rows ?? []); return; } setErr("");
     setMore((data ?? []).length === 12); setRows(reset ? data ?? [] : [...(rows ?? []), ...(data ?? [])]);
   };
   useEffect(() => { setRows(null); load(true); }, [fol]);
+  useEffect(() => { (async () => {
+    const [s, m] = await Promise.all([supabase.rpc("search_providers", { p_limit: 14 }), publicProfiles([uid])]);
+    setPeople((s.data ?? []).filter((x: any) => x.id !== uid)); setMe(m[uid] ?? null);
+  })(); }, [uid]);
   if (composing) return <Compose uid={uid} cancel={() => setComposing(false)} done={() => { setComposing(false); setRows(null); load(true); }} />;
-  return (<><div className="row"><h2>Saage</h2>{isStylist(role) && <button className="btn sm" onClick={() => setComposing(true)}>+ New post</button>}</div>
-    <div className="tabs"><button className={!fol ? "on" : ""} onClick={() => setFol(false)}>For you</button><button className={fol ? "on" : ""} onClick={() => setFol(true)}>Following</button></div>
-    {err && <p className="note err">{err} <button className="link" onClick={() => load(true)}>Retry</button></p>}{rows === null && <p className="muted">Loading...</p>}
-    {rows && !rows.length && !err && <p className="muted center">{fol ? "Follow barbers and stylists to see their work here." : "No posts yet."}</p>}
-    {rows?.map((p) => <PostCard key={p.id} post={p} uid={uid} openProfile={openProfile} onDeleted={() => load(true)} />)}{more && rows && rows.length > 0 && <button className="btn ghost" onClick={() => load(false)}>Load more</button>}</>);
+  return (<div className="feedwrap">
+    <div className="igbar">
+      {isStylist(role) ? <button aria-label="New post" onClick={() => setComposing(true)}><Icon d={I.plusSq} size={26} /></button> : <span style={{ width: 40 }} />}
+      <span className="logo">Saage</span>
+      <button aria-label="Messages" onClick={() => openMessages?.()}><Icon d={I.send} size={26} /></button>
+    </div>
+    <div className="stories">
+      <button className="story" onClick={() => (isStylist(role) ? setComposing(true) : openProfile(uid))}><span className="mystory"><Pic name={me?.full_name} src={me?.avatar_url} size={72} /><span className="plus"><Icon d={I.plus} size={14} /></span></span><span className="nm">Your story</span></button>
+      {people.map((r) => <button key={r.id} className="story" onClick={() => openProfile(r.id)}><span className="sring"><span className="in"><Pic name={r.business_name ?? r.full_name} src={r.avatar_url} size={62} /></span></span><span className="nm">{r.business_name ?? r.full_name}</span></button>)}
+    </div>
+    <div className="feedpad"><div className="tabs"><button className={!fol ? "on" : ""} onClick={() => setFol(false)}>For you</button><button className={fol ? "on" : ""} onClick={() => setFol(true)}>Following</button></div>
+      {err && <p className="note err">{err} <button className="link" onClick={() => load(true)}>Retry</button></p>}{rows === null && <p className="muted">Loading...</p>}
+      {rows && !rows.length && !err && <p className="muted center">{fol ? "Follow barbers and stylists to see their work here." : "No posts yet."}</p>}</div>
+    {rows?.map((p) => <PostCard key={p.id} post={p} uid={uid} openProfile={openProfile} onDeleted={() => load(true)} />)}
+    {more && rows && rows.length > 0 && <div className="feedpad"><button className="btn ghost" onClick={() => load(false)}>Load more</button></div>}
+  </div>);
 }
 
 /* ---------- "Discover people" carousel ---------- */

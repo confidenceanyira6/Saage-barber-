@@ -56,12 +56,12 @@ export default function App() {
   const openChat = (id: string) => { setViewing(null); setChatWith(id); setTab("chat"); };
   let body: React.ReactNode;
   if (viewing) body = provider ? <ProfilePage uid={uid} userId={viewing} role={role} openChat={openChat} back={() => setViewing(null)} /> : <ProviderPage uid={uid} role={role} userId={viewing} back={() => setViewing(null)} openChat={openChat} />;
-  else if (cur === "feed") body = <Feed uid={uid} role={role} openProfile={setViewing} />;
+  else if (cur === "feed") body = <Feed uid={uid} role={role} openProfile={setViewing} openMessages={() => go("chat")} />;
   else if (cur === "find") body = <Discover uid={uid} role={role} openChat={openChat} />;
   else if (cur === "chat") body = <Messages uid={uid} role={role} with={chatWith} clear={() => setChatWith(null)} openProfile={setViewing} />;
   else if (cur === "book") body = <Bookings uid={uid} isProvider={provider} />;
   else if (cur === "biz") body = <Business uid={uid} name={name} email={session.user.email} goBook={() => setTab("book")} />;
   else body = settings ? <><Back go={() => setSettings(false)} /><h2>Settings</h2><ThemePicker uid={uid} />{!provider && <Wallet uid={uid} isProvider={false} />}<More uid={uid} isProvider={provider} name={name} /></> : <><ProfileSetup uid={uid} isProvider={provider} onDone={() => setAvKey(avKey + 1)} /><ProfilePage key={avKey} uid={uid} userId={uid} role={role} openChat={openChat} onSettings={() => setSettings(true)} /></>;
   return (<div className="shell">{notice && <div className="note" onClick={() => setNotice("")}>{notice}</div>}<main>{body}</main>
-    <nav>{tabs.map(([k, l]) => <button key={k} className={cur === k && !viewing ? "on" : ""} onClick={() => go(k)}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={P[k]} /></svg><span>{l}</span></button>)}</nav></div>);
+    <nav>{tabs.map(([k, l]) => <button key={k} aria-label={l} className={cur === k && !viewing ? "on" : ""} onClick={() => go(k)}><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={P[k]} /></svg><span>{l}</span></button>)}</nav></div>);
 }

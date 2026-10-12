@@ -1,0 +1,57 @@
+/* Instagram look for Saage Barber - loaded last so it overrides the orange brand palette */
+:root,:root[data-theme=light]{--o:#0095f6;--o2:#1877f2;--bg:#fff;--card:#fff;--ink:#000;--mut:#737373;--line:#dbdbdb;--soft:#efefef;--nav:#fff;--navink:#000;--dk:#fff;--dkink:#000;--dkline:#dbdbdb;--av:#efefef;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#000;--ink:#fafafa;--mut:#a8a8a8;--line:#262626;--soft:#262626;--nav:#000;--navink:#fafafa;--dk:#000;--dkink:#fafafa;--dkline:#262626;--av:#262626;color-scheme:dark}}
+:root[data-theme=light]{--bg:#fff;--card:#fff;--ink:#000;--mut:#737373;--line:#dbdbdb;--soft:#efefef;--nav:#fff;--navink:#000;--dk:#fff;--dkink:#000;--dkline:#dbdbdb;--av:#efefef;color-scheme:light}
+:root[data-theme=dark]{--bg:#000;--card:#000;--ink:#fafafa;--mut:#a8a8a8;--line:#262626;--soft:#262626;--nav:#000;--navink:#fafafa;--dk:#000;--dkink:#fafafa;--dkline:#262626;--av:#262626;color-scheme:dark}
+body{font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.btn{border-radius:8px;font-size:.95rem}.btn.ghost{background:var(--soft);border-color:transparent}
+input{background:var(--soft);border:1px solid transparent;border-radius:10px}
+.card{border-radius:12px}.card.hero{background:var(--soft);border-color:var(--line)}
+.slogo{background:linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)}
+.bigopt small{color:rgba(255,255,255,.85)}
+.avatar{color:var(--mut)}
+.tabs button{border-radius:8px;border-color:transparent;background:var(--soft);font-weight:600}.tabs .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip{border-radius:8px;border-color:transparent;background:var(--soft);font-weight:600}.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stars{color:#f5a623}
+
+/* bottom bar: icons only, like Instagram */
+nav{padding:4px 8px calc(4px + env(safe-area-inset-bottom))}
+nav button{max-width:none;padding:10px 4px;color:var(--navink)}
+nav button span{display:none}
+nav .on{color:var(--navink)}
+nav .on svg{stroke-width:2.8}
+
+/* top bar + stories */
+.feedwrap{margin:-16px -16px 0}
+.feedpad{padding:0 12px}
+.igbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 12px;background:var(--bg)}
+.igbar .logo{font:700 32px/1 "Billabong","Snell Roundhand","Segoe Script","Brush Script MT",cursive;letter-spacing:.2px}
+.igbar button{background:none;border:0;color:var(--ink);width:40px;height:40px;display:grid;place-items:center;padding:0;cursor:pointer}
+.stories{display:flex;gap:14px;overflow-x:auto;padding:8px 12px 12px;scrollbar-width:none}
+.stories::-webkit-scrollbar{display:none}
+.story{flex:none;width:76px;background:none;border:0;color:var(--ink);padding:0;text-align:center;cursor:pointer;font:inherit}
+.story .nm{display:block;margin-top:5px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sring{display:grid;place-items:center;width:72px;height:72px;border-radius:50%;padding:3px;background:linear-gradient(45deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5);margin:0 auto}
+.sring .in{display:grid;place-items:center;border-radius:50%;padding:3px;background:var(--bg)}
+.sring.sm{width:40px;height:40px;padding:2px;margin:0}.sring.sm .in{padding:2px}
+.mystory{position:relative;display:block;width:72px;margin:0 auto}
+.mystory .pic,.mystory .avatar{display:block}
+.mystory .plus{position:absolute;right:0;bottom:0;width:24px;height:24px;border-radius:50%;background:#000;color:#fff;border:2px solid var(--bg);display:grid;place-items:center}
+:root[data-theme=dark] .mystory .plus{background:var(--o)}
+
+/* posts */
+.post{border-bottom:1px solid var(--line);padding:0 0 8px;margin:0 0 6px}
+.post p{margin:0}
+.post .ph{padding:8px 12px}
+.post .ph .who{line-height:1.2;text-align:left}.post .ph .who b{font-size:14px}
+.post .carousel{margin:0;border-radius:0;gap:0}
+.post .carousel img{border-radius:0}
+.post .pa{padding:10px 12px 4px;gap:16px;justify-content:flex-start}
+.post .pa .act{padding:0;display:grid;place-items:center;color:var(--ink)}
+.post .pa .sp{flex:1}
+.post .pa .act.on{color:#ff3040}
+.post .likes,.post .cap,.post .tm,.post .cmts,.post .note{padding:0 12px}
+.post .likes{margin:2px 0}
+.post .vc{display:block;padding:2px 12px;color:var(--mut);font-weight:400}
+.post .tm{margin-top:4px;text-transform:uppercase;font-size:11px}
+.post .tm small{font-size:11px}
