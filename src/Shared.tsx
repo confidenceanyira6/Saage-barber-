@@ -5,6 +5,11 @@ export const Back = ({ go, label = "Back" }: { go: () => void; label?: string })
 export const Avatar = ({ name, size = 44 }: { name?: string | null; size?: number }) => <div className="avatar" style={{ width: size, height: size }}>{initials(name)}</div>;
 export const Stars = ({ n }: { n: number | null }) => <span className="stars">★ {n ? Number(n).toFixed(1) : "New"}</span>;
 
+const BOOKING_ERR: Record<string, string> = {
+  NOT_PAID: "This booking hasn't been paid in the app yet.", DISPUTED: "This booking is under dispute.", INVALID_STATE: "This booking can't be confirmed right now.",
+  EXTERNAL_PAYMENT: "This booking is paid outside the app.", FORBIDDEN: "You can't do that on this booking.",
+};
+
 export function Bookings({ uid, isProvider }: { uid: string; isProvider: boolean }) {
   const [rows, setRows] = useState<any[] | null>(null); const [names, setNames] = useState<Record<string, string>>({}); const [tab, setTab] = useState("upcoming");
   const [msg, setMsg] = useState(""); const [busy, setBusy] = useState("");
@@ -21,7 +26,7 @@ export function Bookings({ uid, isProvider }: { uid: string; isProvider: boolean
   };
   useEffect(() => { load(); }, [uid]);
   async function run(id: string, p: Promise<any>) { setBusy(id); setMsg(""); try { await p; await load(); } catch (e: any) { setMsg(e.message ?? String(e)); } setBusy(""); }
-  const rpc = async (name: string, args: object) => { const { error } = await supabase.rpc(name, args); if (error) throw new Error(error.message); };
+  const rpc = async (name: string, args: object) => { const { error } = await supabase.rpc(name, args); if (error) { const k = Object.keys(BOOKING_ERR).find((x) => error.message.includes(x)); throw new Error(k ? BOOKING_ERR[k] : error.message); } };
   async function pay(id: string) { const r = await fn("payments-init", { purpose: "booking", booking_id: id }); location.href = r.url; }
   const grp = (b: any) => ["cancelled", "rejected", "refunded"].includes(b.status) ? "cancelled" : b.status === "completed" || new Date(b.scheduled_start) < new Date(Date.now() - 36e5) ? "past" : "upcoming";
   const list = (rows ?? []).filter((b) => grp(b) === tab);
@@ -30,16 +35,25 @@ export function Bookings({ uid, isProvider }: { uid: string; isProvider: boolean
     <div className="tabs">{["upcoming", "past", "cancelled"].map((t) => <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t}</button>)}</div>
     {msg && <p className="note err">{msg}</p>}{rows === null && <p className="muted">Loading...</p>}
     {rows && !list.length && <p className="muted center">No {tab} bookings.</p>}
-    {list.map((b) => <div className="card" key={b.id}>
+    {list.map((b) => {
+      const ext = b.payment_method === "external";
+      const live = ["accepted", "confirmed", "in_progress"].includes(b.status);
+      const canConfirm = live && b.escrow_status !== "disputed" && (ext || b.escrow_status === "held");
+      const mine = isProvider ? b.provider_confirmed_at : b.customer_confirmed_at;
+      const theirs = isProvider ? b.customer_confirmed_at : b.provider_confirmed_at;
+      return (<div className="card" key={b.id}>
       <div className="row"><div><b>{names[isProvider ? b.customer_id : b.provider_id] ?? "-"}</b><br /><small>{names[b.service_id] ?? "Service"} · {when(b.scheduled_start)}</small></div><span className={"pill s-" + b.status}>{b.status.replace("_", " ")}</span></div>
-      <div className="row"><b>{money(b.price, b.currency_code)}</b><small>Escrow: {b.escrow_status}</small></div>
+      <div className="row"><b>{money(b.price, b.currency_code)}</b><small>{ext ? "Paid outside the app" : "Escrow: " + b.escrow_status}</small></div>
+      {ext && live && <small className="muted">Payment is handled directly between you and {isProvider ? "the customer" : "the barber"}. No money moves through Saage.</small>}
       <div className="actions">
-        {!isProvider && ["accepted", "confirmed"].includes(b.status) && b.escrow_status === "none" && <button className="btn sm" disabled={busy === b.id} onClick={() => run(b.id, pay(b.id))}>Pay now</button>}
-        {!isProvider && b.escrow_status !== "none" && !b.customer_confirmed_at && b.status !== "cancelled" && <button className="btn sm dark" onClick={() => run(b.id, rpc("confirm_service", { p_booking: b.id }))}>Confirm service done</button>}
+        {!isProvider && !ext && ["accepted", "confirmed"].includes(b.status) && b.escrow_status === "none" && <button className="btn sm" disabled={busy === b.id} onClick={() => run(b.id, pay(b.id))}>Pay now</button>}
+        {canConfirm && !mine && <button className="btn sm dark" disabled={busy === b.id} onClick={() => run(b.id, rpc("confirm_service", { p_booking: b.id }))}>{isProvider ? "I've finished the haircut - Confirm" : "Confirm haircut done"}</button>}
+        {canConfirm && mine && !theirs && <small className="muted">You confirmed. Waiting for the {isProvider ? "customer" : "barber"} to confirm.</small>}
+        {b.status === "completed" && b.customer_confirmed_at && b.provider_confirmed_at && <small className="muted">✓ Both confirmed{ext ? "" : isProvider ? " - payment sent to your wallet" : " - payment released to the barber"}</small>}
         {isProvider && b.status === "pending" && <><button className="btn sm" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "accepted" }))}>Accept</button><button className="btn sm ghost" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "rejected" }))}>Reject</button></>}
-        {isProvider && ["accepted", "confirmed", "in_progress"].includes(b.status) && b.escrow_status !== "none" && !b.provider_confirmed_at && <button className="btn sm dark" onClick={() => run(b.id, rpc("confirm_service", { p_booking: b.id }))}>Mark service done</button>}
         {!isProvider && b.status === "pending" && <button className="btn sm ghost" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "cancelled" }))}>Cancel</button>}
-      </div></div>)}
+      </div></div>);
+    })}
   </>);
 }
 
@@ -62,12 +76,11 @@ export function Wallet({ uid, isProvider }: { uid: string; isProvider: boolean }
 }
 
 export function More({ uid, isProvider, name }: { uid: string; isProvider: boolean; name: string }) {
-  const [page, setPage] = useState("menu"); const [msg, setMsg] = useState(""); const [nin, setNin] = useState(""); const [notifs, setNotifs] = useState<any[]>([]);
+  const [page, setPage] = useState("menu"); const [msg, setMsg] = useState(""); const [notifs, setNotifs] = useState<any[]>([]);
   useEffect(() => { if (page === "notifs") supabase.from("notifications").select("id,title,body,is_read,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(40).then(({ data }) => setNotifs(data ?? [])); }, [page, uid]);
   async function vip() { try { const r = await fn("payments-init", { purpose: "vip_subscription", months: 1 }); location.href = r.url; } catch (e: any) { setMsg(e.message); } }
-  async function kyc(e: React.FormEvent) { e.preventDefault(); setMsg(""); try { const r = await fn("kyc-verify", { id_type: "nin", id_number: nin }); setMsg(r.status === "verified" ? "You're verified." : r.status === "pending_manual_review" ? "Submitted for manual review." : "Verification failed: " + (r.reason ?? "try again")); setNin(""); } catch (er: any) { setMsg(er.message); } }
   if (page === "notifs") return <><Back go={() => setPage("menu")} /><h2>Notifications</h2>{!notifs.length && <p className="muted">Nothing yet.</p>}{notifs.map((n) => <div className="card" key={n.id}><b>{n.title}</b><br /><small>{n.body}</small></div>)}</>;
-  if (page === "kyc") return <><Back go={() => setPage("menu")} /><h2>Identity verification</h2><p className="muted">Required before withdrawing. Your ID number is never stored.</p><form className="stack" onSubmit={kyc}><input inputMode="numeric" maxLength={11} placeholder="11-digit NIN (Nigeria)" value={nin} onChange={(e) => setNin(e.target.value)} required /><button className="btn">Verify</button></form>{msg && <p className="note">{msg}</p>}</>;
-  const items: [string, string, () => void][] = [["Notifications", "Alerts and updates", () => setPage("notifs")], ["Identity verification", "Needed to withdraw", () => setPage("kyc")], ...(isProvider ? [["Go VIP", "More bookings, more visibility", vip] as [string, string, () => void]] : []), ["Log out", "", () => supabase.auth.signOut()]];
+  if (page === "kyc") return <><Back go={() => setPage("menu")} /><h2>Identity verification</h2><div className="card"><b>✓ Verified</b><br /><small>Your account is verified automatically. You can book home visits and withdraw earnings.</small></div></>;
+  const items: [string, string, () => void][] = [["Notifications", "Alerts and updates", () => setPage("notifs")], ["Identity verification", "Verified automatically", () => setPage("kyc")], ...(isProvider ? [["Go VIP", "More bookings, more visibility", vip] as [string, string, () => void]] : []), ["Log out", "", () => supabase.auth.signOut()]];
   return <><div className="card row"><Avatar name={name} /><b>{name}</b></div>{msg && <p className="note">{msg}</p>}{items.map(([t, s, fnc]) => <button key={t} className="card row menu" onClick={fnc}><span><b>{t}</b><br /><small>{s}</small></span><span>›</span></button>)}</>;
 }
