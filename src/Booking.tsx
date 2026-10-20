@@ -42,16 +42,19 @@ export function ClientTime({ p, s, back, next }: { p: any; s: any; back: () => v
 const ERR: Record<string, string> = { OUTSIDE_AVAILABILITY: "That time is outside the barber's working hours.", PROVIDER_DAY_OFF: "The barber is off that day.", START_IN_PAST: "That time has already passed.", ADDRESS_REQUIRED: "Enter your address for a home visit.", KYC_REQUIRED: "Verify your identity (More) before booking a home visit.", PROVIDER_KYC_REQUIRED: "This barber isn't verified for home visits yet.", HOME_SERVICE_NOT_AVAILABLE: "This barber doesn't do home visits.", CANNOT_BOOK_SELF: "You can't book yourself.", INVALID_SERVICE: "That service isn't available." };
 export function ClientReview({ uid, p, s, at, back, done }: { uid: string; p: any; s: any; at: Date; back: () => void; done: () => void }) {
   const [loc, setLoc] = useState<"salon" | "home">("salon"); const [addr, setAddr] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const [pm, setPm] = useState<"in_app" | "external">("in_app");
   async function book() {
     setBusy(true); setErr("");
-    const { error } = await supabase.from("bookings").insert({ customer_id: uid, provider_id: p.id, service_id: s.id, location_type: loc, service_address: loc === "home" ? addr : null, scheduled_start: at.toISOString(), scheduled_end: new Date(at.getTime() + s.duration_minutes * 60000).toISOString(), price: s.price, currency_code: s.currency_code });
+    const { error } = await supabase.from("bookings").insert({ customer_id: uid, provider_id: p.id, service_id: s.id, location_type: loc, service_address: loc === "home" ? addr : null, scheduled_start: at.toISOString(), scheduled_end: new Date(at.getTime() + s.duration_minutes * 60000).toISOString(), price: s.price, currency_code: s.currency_code, payment_method: pm });
     if (error) { const k = Object.keys(ERR).find((x) => error.message.includes(x)); setErr(k ? ERR[k] : /overlap|exclusion|conflict/i.test(error.message) ? "Someone just booked that time. Please pick another." : error.message); setBusy(false); } else done();
   }
   return (<><Back go={back} /><h2>Review &amp; Confirm</h2><div className="card"><div className="row gap"><Avatar name={p.business_name ?? p.full_name} /><div><b>{p.business_name ?? p.full_name}</b><br /><small>{when(at.toISOString())} · {dur(s.duration_minutes)}</small></div></div></div>
     {p.home_service_enabled && <div className="tabs"><button className={loc === "salon" ? "on" : ""} onClick={() => setLoc("salon")}>At the salon</button><button className={loc === "home" ? "on" : ""} onClick={() => setLoc("home")}>Home visit</button></div>}
     {loc === "home" && <input placeholder="Your address" value={addr} onChange={(e) => setAddr(e.target.value)} />}
     <div className="card"><div className="row"><span>{s.name}</span><span>{money(s.price, s.currency_code)}</span></div>{loc === "home" && Number(p.travel_fee) > 0 && <div className="row"><small>Travel fee added at confirmation</small></div>}</div>
-    <p className="muted">You pay after the barber accepts. Your payment is held securely until the service is done.</p>{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={book}>Send booking request</button></>);
+    <h3>How will you pay?</h3>
+    <div className="tabs"><button className={pm === "in_app" ? "on" : ""} onClick={() => setPm("in_app")}>Pay in the app</button><button className={pm === "external" ? "on" : ""} onClick={() => setPm("external")}>Pay outside the app</button></div>
+    <p className="muted">{pm === "in_app" ? "You pay after the barber accepts. Your payment is held securely until you and the barber both confirm the haircut is done, then it goes to the barber's wallet." : "You'll pay the barber directly (cash or transfer). Nothing is charged in the app and no money moves through Saage. You and the barber still both confirm when the haircut is done."}</p>{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={book}>Send booking request</button></>);
 }
 
 /* ---------------- Stylist: services with hairstyle durations ---------------- */
