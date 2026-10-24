@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, money, when } from "./lib";
 import { Avatar, Back } from "./Shared";
+import { PhotoPicker, ServiceGallery, loadStyleImages, saveStyleFiles, removeStyleImages, type StyleImage } from "./ServiceImages";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -32,7 +33,7 @@ export function ClientTime({ p, s, back, next }: { p: any; s: any; back: () => v
     return out;
   };
   const slots = useMemo(() => { if (!day) return []; const [y, m, dd] = day.split("-").map(Number); return slotsFor(new Date(y, m - 1, dd)); }, [day, av, off, busy]);
-  return (<><Back go={back} /><h2>Pick a date &amp; time</h2><p className="muted">{s.name} · takes about <b>{dur(s.duration_minutes)}</b></p>
+  return (<><Back go={back} /><h2>Pick a date &amp; time</h2><p className="muted">{s.name} · takes about <b>{dur(s.duration_minutes)}</b></p><ServiceGallery images={s.images} size={64} />
     {av === null ? <p className="muted">Loading...</p> : <CalendarGrid month={month} setMonth={setMonth} sel={day} info={(d) => ({ disabled: slotsFor(d).length === 0 })} onPick={(d) => { setDay(ymd(d)); setSel(null); }} />}
     {av && !av.length && <p className="note">This barber hasn't set their working hours yet.</p>}
     {day && <><h3>Available times</h3>{!slots.length && <p className="muted">No free times this day.</p>}<div className="slots">{slots.map((t) => <button key={t.getTime()} className={"slot" + (sel?.getTime() === t.getTime() ? " on" : "")} onClick={() => setSel(t)}>{t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</button>)}</div></>}
@@ -49,6 +50,7 @@ export function ClientReview({ uid, p, s, at, back, done }: { uid: string; p: an
     if (error) { const k = Object.keys(ERR).find((x) => error.message.includes(x)); setErr(k ? ERR[k] : /overlap|exclusion|conflict/i.test(error.message) ? "Someone just booked that time. Please pick another." : error.message); setBusy(false); } else done();
   }
   return (<><Back go={back} /><h2>Review &amp; Confirm</h2><div className="card"><div className="row gap"><Avatar name={p.business_name ?? p.full_name} /><div><b>{p.business_name ?? p.full_name}</b><br /><small>{when(at.toISOString())} · {dur(s.duration_minutes)}</small></div></div></div>
+    {s.images?.length > 0 && <div className="card"><b>{s.name}</b><ServiceGallery images={s.images} size={96} /></div>}
     {p.home_service_enabled && <div className="tabs"><button className={loc === "salon" ? "on" : ""} onClick={() => setLoc("salon")}>At the salon</button><button className={loc === "home" ? "on" : ""} onClick={() => setLoc("home")}>Home visit</button></div>}
     {loc === "home" && <input placeholder="Your address" value={addr} onChange={(e) => setAddr(e.target.value)} />}
     <div className="card"><div className="row"><span>{s.name}</span><span>{money(s.price, s.currency_code)}</span></div>{loc === "home" && Number(p.travel_fee) > 0 && <div className="row"><small>Travel fee added at confirmation</small></div>}</div>
@@ -57,28 +59,34 @@ export function ClientReview({ uid, p, s, at, back, done }: { uid: string; p: an
     <p className="muted">{pm === "in_app" ? "You pay after the barber accepts. Your payment is held securely until you and the barber both confirm the haircut is done, then it goes to the barber's wallet." : "You'll pay the barber directly (cash or transfer). Nothing is charged in the app and no money moves through Saage. You and the barber still both confirm when the haircut is done."}</p>{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={book}>Send booking request</button></>);
 }
 
-/* ---------------- Stylist: services with hairstyle durations ---------------- */
+/* ---------------- Stylist: hairstyles with durations and photos ---------------- */
 const PRESETS = [30, 60, 90, 120, 180, 240, 360];
 export function ServicesPro({ uid }: { uid: string }) {
-  const [rows, setRows] = useState<any[] | null>(null); const [cur, setCur] = useState("NGN"); const [msg, setMsg] = useState(""); const [e, setE] = useState<any | null>(null);
-  const load = async () => setRows((await supabase.from("provider_services").select("*").eq("provider_id", uid).order("created_at")).data ?? []);
+  const [rows, setRows] = useState<any[] | null>(null); const [imgs, setImgs] = useState<Record<string, StyleImage[]>>({}); const [cur, setCur] = useState("NGN"); const [msg, setMsg] = useState(""); const [e, setE] = useState<any | null>(null); const [saving, setSaving] = useState(false);
+  const load = async () => { const [s, i] = await Promise.all([supabase.from("provider_services").select("*").eq("provider_id", uid).order("created_at"), loadStyleImages(uid)]); setRows(s.data ?? []); setImgs(i); };
   useEffect(() => { load(); supabase.from("profiles").select("currency_code").eq("id", uid).maybeSingle().then(({ data }) => data && setCur(data.currency_code)); }, [uid]);
   async function save(ev: React.FormEvent) {
     ev.preventDefault(); setMsg(""); const minutes = Number(e.h) * 60 + Number(e.m);
     const v = { name: e.name.trim(), description: e.description || null, price: Number(e.price), duration_minutes: minutes, category: e.category || null };
     if (!v.name || !(v.price > 0)) return setMsg("Enter the hairstyle name and a price."); if (minutes < 5 || minutes > 720) return setMsg("Duration must be between 5 minutes and 12 hours.");
-    const r = e.id ? await supabase.from("provider_services").update(v).eq("id", e.id) : await supabase.from("provider_services").insert({ ...v, provider_id: uid, currency_code: cur, is_active: true });
-    if (r.error) setMsg(r.error.message); else { setE(null); load(); }
+    setSaving(true); let id: string = e.id;
+    if (id) { const r = await supabase.from("provider_services").update(v).eq("id", id); if (r.error) { setMsg(r.error.message); setSaving(false); return; } }
+    else { const r = await supabase.from("provider_services").insert({ ...v, provider_id: uid, currency_code: cur, is_active: true }).select("id").single(); if (r.error || !r.data) { setMsg(r.error?.message ?? "Could not save this hairstyle."); setSaving(false); return; } id = r.data.id; }
+    await removeStyleImages(e.gone);
+    const photoErr = await saveStyleFiles(uid, id, e.files, e.imgs.length);
+    setSaving(false); setE(null); await load(); if (photoErr) setMsg("Hairstyle saved, but a photo didn't upload: " + photoErr);
   }
-  const edit = (s?: any) => setE(s ? { ...s, h: Math.floor(s.duration_minutes / 60), m: s.duration_minutes % 60 } : { name: "", price: "", h: 1, m: 0, category: "", description: "" });
+  const edit = (s?: any) => setE(s ? { ...s, h: Math.floor(s.duration_minutes / 60), m: s.duration_minutes % 60, imgs: imgs[s.id] ?? [], files: [], gone: [] } : { name: "", price: "", h: 1, m: 0, category: "", description: "", imgs: [], files: [], gone: [] });
   const toggle = async (s: any) => { await supabase.from("provider_services").update({ is_active: !s.is_active }).eq("id", s.id); load(); };
-  const del = async (s: any) => { if (!confirm("Delete this hairstyle?")) return; const { error } = await supabase.from("provider_services").delete().eq("id", s.id); if (error) setMsg("It has bookings, so switch it off instead."); load(); };
+  const del = async (s: any) => { if (!confirm("Delete this hairstyle?")) return; const { error } = await supabase.from("provider_services").delete().eq("id", s.id); if (error) setMsg("It has bookings, so switch it off instead."); else if (imgs[s.id]?.length) await supabase.storage.from("portfolio").remove(imgs[s.id].map((x) => x.image_path)); load(); };
   if (e) return (<form className="stack" onSubmit={save}><Back go={() => setE(null)} /><h2>{e.id ? "Edit hairstyle" : "New hairstyle"}</h2><input placeholder="Hairstyle (e.g. Knotless braids, Fade + beard)" value={e.name} onChange={(x) => setE({ ...e, name: x.target.value })} /><input placeholder="Type (e.g. Braids, Cut, Colour)" value={e.category ?? ""} onChange={(x) => setE({ ...e, category: x.target.value })} /><input type="number" placeholder={`Price (${cur})`} value={e.price} onChange={(x) => setE({ ...e, price: x.target.value })} />
     <b>How long does it usually take you?</b><div className="chips">{PRESETS.map((m) => <span key={m} className={"chip" + (Number(e.h) * 60 + Number(e.m) === m ? " on" : "")} onClick={() => setE({ ...e, h: Math.floor(m / 60), m: m % 60 })}>{dur(m)}</span>)}</div>
     <div className="grid2"><label>Hours<select value={e.h} onChange={(x) => setE({ ...e, h: x.target.value })}>{Array.from({ length: 13 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></label><label>Minutes<select value={e.m} onChange={(x) => setE({ ...e, m: x.target.value })}>{[0, 5, 10, 15, 20, 30, 45].map((i) => <option key={i} value={i}>{i}</option>)}</select></label></div>
-    <p className="muted"><small>Customers can only book times where this whole duration fits in your hours.</small></p><input placeholder="Description (optional)" value={e.description ?? ""} onChange={(x) => setE({ ...e, description: x.target.value })} />{msg && <p className="note err">{msg}</p>}<button className="btn">Save hairstyle</button></form>);
-  return (<><div className="row"><h2>My Hairstyles</h2><button className="btn sm" onClick={() => edit()}>+ Add</button></div>{msg && <p className="note err">{msg}</p>}{rows && !rows.length && <p className="muted center">Add each hairstyle you offer, with the time it usually takes.</p>}
-    {rows?.map((s) => <div className="card" key={s.id}><div className="row"><span><b>{s.name}</b><br /><small>⏱ {dur(s.duration_minutes)} · {s.category ?? "General"}</small></span><b>{money(s.price, s.currency_code)}</b></div><div className="actions"><button className="btn sm ghost" onClick={() => edit(s)}>Edit</button><button className="btn sm ghost" onClick={() => toggle(s)}>{s.is_active ? "Switch off" : "Switch on"}</button><button className="btn sm dark" onClick={() => del(s)}>Delete</button></div></div>)}</>);
+    <p className="muted"><small>Customers can only book times where this whole duration fits in your hours.</small></p><input placeholder="Description (optional)" value={e.description ?? ""} onChange={(x) => setE({ ...e, description: x.target.value })} />
+    <PhotoPicker existing={e.imgs} files={e.files} onAdd={(f) => setE({ ...e, files: [...e.files, ...f] })} onRemoveExisting={(p) => setE({ ...e, imgs: e.imgs.filter((x: StyleImage) => x.id !== p.id), gone: [...e.gone, p] })} onRemoveFile={(i) => setE({ ...e, files: e.files.filter((_: File, j: number) => j !== i) })} />
+    {msg && <p className="note err">{msg}</p>}<button className="btn" disabled={saving}>{saving ? "Saving..." : "Save hairstyle"}</button></form>);
+  return (<><div className="row"><h2>My Hairstyles</h2><button className="btn sm" onClick={() => edit()}>+ Add</button></div>{msg && <p className="note err">{msg}</p>}{rows && !rows.length && <p className="muted center">Add each hairstyle you offer, with the time it usually takes and photos of the finished look.</p>}
+    {rows?.map((s) => <div className="card" key={s.id}><div className="row"><span><b>{s.name}</b><br /><small>⏱ {dur(s.duration_minutes)} · {s.category ?? "General"}</small></span><b>{money(s.price, s.currency_code)}</b></div>{imgs[s.id]?.length ? <ServiceGallery images={imgs[s.id]} size={64} /> : <small className="muted">No photos yet. Edit this hairstyle to add some so customers can see the look.</small>}<div className="actions"><button className="btn sm ghost" onClick={() => edit(s)}>Edit</button><button className="btn sm ghost" onClick={() => toggle(s)}>{s.is_active ? "Switch off" : "Switch on"}</button><button className="btn sm dark" onClick={() => del(s)}>Delete</button></div></div>)}</>);
 }
 
 /* ---------------- Stylist: calendar, weekly hours, days off ---------------- */

@@ -5,6 +5,23 @@ export const Logo = ({ size = 40 }: { size?: number }) => <div className="slogo"
 
 export function Splash() { return <div className="center-screen"><Logo size={88} /><h1 className="brand">Saage</h1><p className="muted">Barber &amp; Beauty Marketplace</p><p className="tag3">Look Good · Feel Good · Book Easy</p></div>; }
 
+/** Password field with an eye button to show or hide what is being typed. */
+export function PasswordInput({ value, onChange, placeholder = "Password", autoComplete }: { value: string; onChange: (v: string) => void; placeholder?: string; autoComplete?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input type={show ? "text" : "password"} placeholder={placeholder} minLength={8} value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} required style={{ paddingRight: 48 }} />
+      <button type="button" aria-label={show ? "Hide password" : "Show password"} aria-pressed={show} onClick={() => setShow(!show)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: "auto", minWidth: 0, height: "auto", margin: 0, background: "none", border: 0, boxShadow: "none", padding: 8, cursor: "pointer", color: "inherit", lineHeight: 0, opacity: 0.7 }}>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {show
+            ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><path d="M1 1l22 22" /></>
+            : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 type Step = "welcome" | "login" | "role" | "style" | "register" | "verify";
 
 export default function Auth() {
@@ -37,7 +54,7 @@ export default function Auth() {
       <form onSubmit={submit} className="stack">
         {step === "register" && <input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />}
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput key={step} value={password} onChange={setPassword} autoComplete={step === "login" ? "current-password" : "new-password"} />
         <button className="btn" disabled={busy}>{step === "login" ? "Login" : "Create Account"}</button>
         {msg && <p className="note err">{msg}</p>}
       </form>
