@@ -4,6 +4,7 @@ import { Back, Stars } from "./Shared";
 import { ClientTime, ClientReview, dur } from "./Booking";
 import { ProfilePage, Pic } from "./Social";
 import { LocationFilters, countryName, type Loc } from "./Location";
+import { ServiceGallery, loadStyleImages } from "./ServiceImages";
 
 type Step = { n: "profile" } | { n: "book" } | { n: "time"; s: any } | { n: "review"; s: any; at: Date } | { n: "done"; s: any; at: Date };
 
@@ -14,14 +15,14 @@ export function ProviderPage({ uid, role, userId, back, openChat }: { uid: strin
     const [pv, pr] = await Promise.all([supabase.from("providers").select("*").eq("id", userId).maybeSingle(), publicProfiles([userId])]);
     setP(pv.data ? { ...pv.data, full_name: pr[userId]?.full_name, avatar_url: pr[userId]?.avatar_url } : null);
   })(); }, [userId]);
-  useEffect(() => { if (step.n === "book") supabase.from("provider_services").select("*").eq("provider_id", userId).eq("is_active", true).then(({ data }) => setSvc(data ?? [])); }, [step.n, userId]);
+  useEffect(() => { if (step.n === "book") Promise.all([supabase.from("provider_services").select("*").eq("provider_id", userId).eq("is_active", true), loadStyleImages(userId)]).then(([{ data }, im]) => setSvc((data ?? []).map((s: any) => ({ ...s, images: im[s.id] ?? [] })))); }, [step.n, userId]);
   if (p === undefined) return <><Back go={back} /><p className="muted">Loading...</p></>;
   const canBook = !!p && role === "customer" && uid !== userId;
   const name = p?.business_name ?? p?.full_name;
   if (step.n === "book" && p) return (<><Back go={() => setStep({ n: "profile" })} label="Profile" />
     <div className="card hero"><div className="row gap"><Pic name={name} src={p.avatar_url} size={56} /><div><b>{name}</b><br /><Stars n={p.rating_avg} /> <small>({p.rating_count ?? 0})</small></div></div></div>
     <h3>Hairstyles &amp; services</h3>{svc === null && <p className="muted">Loading...</p>}{svc && !svc.length && <p className="muted">No services listed yet.</p>}
-    {svc?.map((s) => <div className="card row" key={s.id}><span><b>{s.name}</b><br /><small>⏱ {dur(s.duration_minutes)}{s.description ? " · " + s.description : ""}</small></span><span className="right"><b>{money(s.price, s.currency_code)}</b><br /><button className="btn sm" onClick={() => setStep({ n: "time", s })}>Book Now</button></span></div>)}</>);
+    {svc?.map((s) => <div className="card" key={s.id}><div className="row"><span><b>{s.name}</b><br /><small>⏱ {dur(s.duration_minutes)}{s.description ? " · " + s.description : ""}</small></span><span className="right"><b>{money(s.price, s.currency_code)}</b><br /><button className="btn sm" onClick={() => setStep({ n: "time", s })}>Book Now</button></span></div><ServiceGallery images={s.images} size={96} /></div>)}</>);
   if (step.n === "time" && p) return <ClientTime p={p} s={step.s} back={() => setStep({ n: "book" })} next={(at) => setStep({ n: "review", s: step.s, at })} />;
   if (step.n === "review" && p) return <ClientReview uid={uid} p={p} s={step.s} at={step.at} back={() => setStep({ n: "time", s: step.s })} done={() => setStep({ n: "done", s: step.s, at: step.at })} />;
   if (step.n === "done" && p) return <div className="center-screen inline"><div className="ring ok">✓</div><h2>Booking request sent!</h2><p className="muted">{name} · {step.s.name}<br />{when(step.at.toISOString())}</p><p className="muted">You can pay from Bookings once they accept.</p><button className="btn" onClick={() => setStep({ n: "profile" })}>Back to profile</button><button className="btn ghost" onClick={() => openChat(userId)}>Message {name}</button></div>;
