@@ -50,7 +50,7 @@ export default function App() {
   if (!session || !uid) return <>{notice && <div className="note" style={{ margin: 16 }}>{notice}</div>}<Auth /></>;
   if (!role) return <Splash />;
   const provider = isStylist(role);
-  const tabs: [string, string][] = provider ? [["feed", "Feed"], ["chat", "Chat"], ["book", "Bookings"], ["biz", "Business"], ["me", "Profile"]] : [["feed", "Feed"], ["find", "Find"], ["chat", "Chat"], ["book", "Bookings"], ["me", "Profile"]];
+  const tabs: [string, string][] = provider ? [["feed", "Home"], ["chat", "Chat"], ["book", "Bookings"], ["biz", "Business"], ["me", "Profile"]] : [["feed", "Home"], ["find", "Find"], ["chat", "Chat"], ["book", "Bookings"], ["me", "Profile"]];
   const cur = tabs.some(([k]) => k === tab) ? tab : "feed";
   const go = (k: string) => { setViewing(null); setSettings(false); setTab(k); };
   const openChat = (id: string) => { setViewing(null); setChatWith(id); setTab("chat"); };

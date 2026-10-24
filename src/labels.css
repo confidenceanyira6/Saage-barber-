@@ -1,0 +1,28 @@
+/* Show a name with every icon button (the bottom bar and the Instagram-style icons were icon-only). */
+
+/* Bottom bar: Home, Find, Chat, Bookings, Profile / Business */
+nav button{padding:8px 2px;gap:3px}
+nav button span{display:block;font-size:.72rem;line-height:1.1;font-weight:600}
+nav .on span{font-weight:800}
+
+/* Top bar of the home feed: New post / Messages */
+.igbar button{width:auto;min-width:56px;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 4px}
+.igbar button::after{content:attr(aria-label);font-size:10px;font-weight:600;line-height:1}
+.igbar > span:first-child{width:56px !important}
+
+/* Under each post: Like, Comment, Share, Book */
+.post .pa{gap:18px}
+.post .pa .act{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600}
+.post .pa .act::after{content:attr(aria-label)}
+.post .pa .act[aria-label="Comments"]::after{content:"Comment"}
+.post .pa .act[aria-label^="View"]::after{content:"Book"}
+
+/* Own profile: New post and Settings */
+.igicons .igicon{display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;height:auto;padding:4px 8px}
+.igicons .igicon::after{content:attr(aria-label);font-size:10px;font-weight:600;line-height:1}
+
+/* Profile tabs and share button */
+.igtabs button{display:flex;align-items:center;justify-content:center;gap:6px}
+.igtabs button::after{content:attr(aria-label);font-size:12px;font-weight:600}
+.igb.sq{width:auto;padding:0 12px}
+.igb.sq::after{content:" Share"}

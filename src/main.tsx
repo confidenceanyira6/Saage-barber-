@@ -10,5 +10,6 @@ import "./location.css";
 import "./profile.css";
 import "./themes.css";
 import "./instagram.css";
+import "./labels.css";
 initTheme();
 createRoot(document.getElementById("root")!).render(<App />);
