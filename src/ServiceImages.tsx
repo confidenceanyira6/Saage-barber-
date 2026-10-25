@@ -43,9 +43,12 @@ const NET = /failed to fetch|network|load failed|timeout|timed out|connection/i;
 async function uploadWithRetry(path: string, f: File): Promise<string> {
   let last = "";
   for (let a = 0; a < 3; a++) {
-    const up = await supabase.storage.from("portfolio").upload(path, f, { contentType: f.type || "image/jpeg", upsert: true });
+    // No upsert: the bucket has insert/update/delete policies but no select policy, and upsert needs select.
+    const up = await supabase.storage.from("portfolio").upload(path, f, { contentType: f.type || "image/jpeg" });
     if (!up.error) return "";
     last = up.error.message;
+    // A retry can find the file already stored by the earlier attempt that only looked like it failed: that is success.
+    if (/already exists|duplicate/i.test(last)) return "";
     if (!NET.test(last)) break;
     await new Promise((r) => setTimeout(r, 1500 * (a + 1)));
   }
