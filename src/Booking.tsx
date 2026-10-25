@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase, money, when } from "./lib";
 import { Avatar, Back } from "./Shared";
 import { PhotoPicker, ServiceGallery, loadStyleImages, saveStyleFiles, removeStyleImages, type StyleImage } from "./ServiceImages";
+import { StyleCard } from "./StyleCard";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -86,7 +87,7 @@ export function ServicesPro({ uid }: { uid: string }) {
     <PhotoPicker existing={e.imgs} files={e.files} onAdd={(f) => setE({ ...e, files: [...e.files, ...f] })} onRemoveExisting={(p) => setE({ ...e, imgs: e.imgs.filter((x: StyleImage) => x.id !== p.id), gone: [...e.gone, p] })} onRemoveFile={(i) => setE({ ...e, files: e.files.filter((_: File, j: number) => j !== i) })} />
     {msg && <p className="note err">{msg}</p>}<button className="btn" disabled={saving}>{saving ? "Saving..." : "Save hairstyle"}</button></form>);
   return (<><div className="row"><h2>My Hairstyles</h2><button className="btn sm" onClick={() => edit()}>+ Add</button></div>{msg && <p className="note err">{msg}</p>}{rows && !rows.length && <p className="muted center">Add each hairstyle you offer, with the time it usually takes and photos of the finished look.</p>}
-    {rows?.map((s) => <div className="card" key={s.id}><div className="row"><span><b>{s.name}</b><br /><small>⏱ {dur(s.duration_minutes)} · {s.category ?? "General"}</small></span><b>{money(s.price, s.currency_code)}</b></div>{imgs[s.id]?.length ? <ServiceGallery images={imgs[s.id]} size={64} /> : <small className="muted">No photos yet. Edit this hairstyle to add some so customers can see the look.</small>}<div className="actions"><button className="btn sm ghost" onClick={() => edit(s)}>Edit</button><button className="btn sm ghost" onClick={() => toggle(s)}>{s.is_active ? "Switch off" : "Switch on"}</button><button className="btn sm dark" onClick={() => del(s)}>Delete</button></div></div>)}</>);
+    {rows?.map((s) => <StyleCard key={s.id} title={s.name} meta={`⏱ ${dur(s.duration_minutes)} · ${s.category ?? "General"}`} price={money(s.price, s.currency_code)} active={!!s.is_active} images={imgs[s.id]} onEdit={() => edit(s)} onToggle={() => toggle(s)} onDelete={() => del(s)} />)}</>);
 }
 
 /* ---------------- Stylist: calendar, weekly hours, days off ---------------- */
