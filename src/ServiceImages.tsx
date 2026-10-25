@@ -17,14 +17,49 @@ export async function loadStyleImages(providerId: string): Promise<Record<string
   return out;
 }
 
+/**
+ * Called the moment a photo is chosen. Reads the picture into memory straight away (phones can lose access to the
+ * original file by the time the stylist taps Save, which showed up as "Failed to fetch") and shrinks it so it uploads
+ * quickly even on a slow connection. Throws if the phone will not let us read the file.
+ */
+async function prepare(file: File): Promise<File> {
+  const buf = await file.arrayBuffer();
+  const copy = new Blob([buf], { type: file.type });
+  try {
+    const bmp = await createImageBitmap(copy);
+    const scale = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(bmp.width * scale)); c.height = Math.max(1, Math.round(bmp.height * scale));
+    const ctx = c.getContext("2d")!; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    if (typeof bmp.close === "function") bmp.close();
+    const blob: Blob | null = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.8));
+    if (blob && blob.size < copy.size) return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch { /* could not shrink: keep the in-memory copy of the original */ }
+  return new File([copy], file.name, { type: file.type });
+}
+
+const NET = /failed to fetch|network|load failed|timeout|timed out|connection/i;
+
+/** One upload, retried a few times when the phone's connection drops. Returns "" on success, otherwise a readable error. */
+async function uploadWithRetry(path: string, f: File): Promise<string> {
+  let last = "";
+  for (let a = 0; a < 3; a++) {
+    const up = await supabase.storage.from("portfolio").upload(path, f, { contentType: f.type || "image/jpeg", upsert: true });
+    if (!up.error) return "";
+    last = up.error.message;
+    if (!NET.test(last)) break;
+    await new Promise((r) => setTimeout(r, 1500 * (a + 1)));
+  }
+  return NET.test(last) ? "the connection dropped. Check your internet and edit the hairstyle to add the photo again." : last;
+}
+
 /** Uploads files to storage and links them to a hairstyle. Returns an error message, or "" when everything worked. */
 export async function saveStyleFiles(uid: string, serviceId: string, files: File[], startAt: number): Promise<string> {
   let err = "";
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     const path = `${uid}/styles/${serviceId}/${Date.now()}-${i}-${f.name.replace(/[^\w.]/g, "_")}`;
-    const up = await supabase.storage.from("portfolio").upload(path, f);
-    if (up.error) { err = up.error.message; continue; }
+    const upErr = await uploadWithRetry(path, f);
+    if (upErr) { err = upErr; continue; }
     const r = await supabase.from("service_images").insert({ service_id: serviceId, provider_id: uid, image_path: path, sort_order: startAt + i });
     if (r.error) { err = r.error.message; await supabase.storage.from("portfolio").remove([path]); }
   }
@@ -39,26 +74,29 @@ export async function removeStyleImages(rows: StyleImage[]) {
 
 /** Stylist side: choose, preview and remove photos before saving a hairstyle. */
 export function PhotoPicker({ existing, files, onAdd, onRemoveExisting, onRemoveFile }: { existing: StyleImage[]; files: File[]; onAdd: (f: File[]) => void; onRemoveExisting: (p: StyleImage) => void; onRemoveFile: (i: number) => void }) {
-  const [previews, setPreviews] = useState<string[]>([]); const [warn, setWarn] = useState("");
+  const [previews, setPreviews] = useState<string[]>([]); const [warn, setWarn] = useState(""); const [busy, setBusy] = useState(false);
   useEffect(() => { const urls = files.map((f) => URL.createObjectURL(f)); setPreviews(urls); return () => urls.forEach((u) => URL.revokeObjectURL(u)); }, [files]);
   const total = existing.length + files.length;
-  function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const list = Array.from(e.target.files ?? []); e.target.value = ""; setWarn("");
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target; const list = Array.from(input.files ?? []); setWarn(""); setBusy(true);
     const ok: File[] = []; let problem = "";
     for (const f of list) {
-      if (!OK_TYPES.includes(f.type)) problem = "Use JPG, PNG or WebP photos.";
-      else if (f.size > 5_000_000) problem = `${f.name} is over 5 MB.`;
-      else if (total + ok.length >= MAX_STYLE_PHOTOS) problem = `You can add up to ${MAX_STYLE_PHOTOS} photos.`;
-      else ok.push(f);
+      if (!OK_TYPES.includes(f.type)) { problem = "Use JPG, PNG or WebP photos."; continue; }
+      if (total + ok.length >= MAX_STYLE_PHOTOS) { problem = `You can add up to ${MAX_STYLE_PHOTOS} photos.`; continue; }
+      try {
+        const g = await prepare(f);
+        if (g.size > 5_000_000) problem = `${f.name} is too large. Choose a smaller photo.`; else ok.push(g);
+      } catch { problem = `Couldn't read ${f.name}. Please choose the photo again.`; }
     }
+    input.value = ""; setBusy(false);
     if (problem) setWarn(problem); if (ok.length) onAdd(ok);
   }
-  return (<div className="stack"><b>Photos of this hairstyle</b><p className="muted" style={{ margin: 0 }}><small>Customers see these before they book. Up to {MAX_STYLE_PHOTOS} photos, 5 MB each.</small></p>
+  return (<div className="stack"><b>Photos of this hairstyle</b><p className="muted" style={{ margin: 0 }}><small>Customers see these before they book. Up to {MAX_STYLE_PHOTOS} photos. Big photos are shrunk automatically.</small></p>
     {total > 0 && <div className="photos">
       {existing.map((p) => <div key={p.id} className="photo"><img src={styleImgUrl(p.image_path)} alt="Hairstyle" /><button type="button" aria-label="Remove photo" onClick={() => onRemoveExisting(p)}>×</button></div>)}
       {files.map((f, i) => <div key={f.name + i} className="photo">{previews[i] && <img src={previews[i]} alt="New photo" />}<button type="button" aria-label="Remove photo" onClick={() => onRemoveFile(i)}>×</button></div>)}
     </div>}
-    {total < MAX_STYLE_PHOTOS && <label className="btn ghost" style={{ textAlign: "center", cursor: "pointer", display: "block" }}>+ Add photos<input type="file" accept={OK_TYPES.join(",")} multiple hidden onChange={pick} /></label>}
+    {total < MAX_STYLE_PHOTOS && <label className="btn ghost" style={{ textAlign: "center", cursor: "pointer", display: "block", opacity: busy ? 0.6 : 1 }}>{busy ? "Preparing photo..." : "+ Add photos"}<input type="file" accept={OK_TYPES.join(",")} multiple hidden disabled={busy} onChange={pick} /></label>}
     {warn && <p className="note err">{warn}</p>}</div>);
 }
 
