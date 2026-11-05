@@ -7,10 +7,10 @@ export const Stars = ({ n }: { n: number | null }) => <span className="stars">�
 
 const BOOKING_ERR: Record<string, string> = {
   NOT_PAID: "This booking hasn't been paid in the app yet.", DISPUTED: "This booking is under dispute.", INVALID_STATE: "This booking can't be changed right now.",
-  EXTERNAL_PAYMENT: "This booking is paid outside the app.", FORBIDDEN: "You can't do that on this booking.", ALREADY_PAID: "This booking is already paid.",
+  EXTERNAL_PAYMENT: "Paying outside the app isn't available. Please pay in the app.", FORBIDDEN: "You can't do that on this booking.", ALREADY_PAID: "This booking is already paid.",
 };
 const FN_ERR: Record<string, string> = {
-  EXTERNAL_PAYMENT: "This booking is set to pay outside the app. Switch it to pay in the app first.", PAYMENT_PROVIDER_ERROR: "The payment provider had a problem. Please try again.",
+  EXTERNAL_PAYMENT: "Paying outside the app isn't available. Please pay in the app.", PAYMENT_PROVIDER_ERROR: "The payment provider had a problem. Please try again.",
   INVALID_PAYONEER_EMAIL: "Enter a valid Payoneer email.", TRANSFER_REJECTED: "The bank transfer was rejected. Check the account details.", INTERNAL_ERROR: "Something went wrong. Please try again.",
 };
 const friendly = (m: string) => FN_ERR[m] ?? m;
@@ -43,16 +43,15 @@ export function Bookings({ uid, isProvider }: { uid: string; isProvider: boolean
     {msg && <p className="note err">{msg}</p>}{rows === null && <p className="muted">Loading...</p>}
     {rows && !list.length && <p className="muted center">No {tab} bookings.</p>}
     {list.map((b) => {
+      // Older bookings made before in-app payment became mandatory may still be marked "external"; they are shown as history only.
       const ext = b.payment_method === "external";
       const live = ["accepted", "confirmed", "in_progress"].includes(b.status);
       const canConfirm = live && b.escrow_status !== "disputed" && (ext || b.escrow_status === "held");
-      const canSwitch = ["pending", "accepted", "confirmed"].includes(b.status) && b.escrow_status === "none";
       const mine = isProvider ? b.provider_confirmed_at : b.customer_confirmed_at;
       const theirs = isProvider ? b.customer_confirmed_at : b.provider_confirmed_at;
       return (<div className="card" key={b.id}>
       <div className="row"><div><b>{names[isProvider ? b.customer_id : b.provider_id] ?? "-"}</b><br /><small>{names[b.service_id] ?? "Service"} · {when(b.scheduled_start)}</small></div><span className={"pill s-" + b.status}>{b.status.replace("_", " ")}</span></div>
       <div className="row"><b>{money(b.price, b.currency_code)}</b><small>{ext ? "Paid outside the app" : "Escrow: " + b.escrow_status}</small></div>
-      {ext && live && <small className="muted">Payment is handled directly between you and {isProvider ? "the customer" : "the barber"}. No money moves through Saage.</small>}
       <div className="actions">
         {!isProvider && !ext && ["accepted", "confirmed"].includes(b.status) && b.escrow_status === "none" && <button className="btn sm" disabled={busy === b.id} onClick={() => run(b.id, pay(b.id))}>Pay now</button>}
         {canConfirm && !mine && <button className="btn sm dark" disabled={busy === b.id} onClick={() => run(b.id, rpc("confirm_service", { p_booking: b.id }))}>{isProvider ? "I've finished the haircut - Confirm" : "Confirm haircut done"}</button>}
@@ -60,7 +59,6 @@ export function Bookings({ uid, isProvider }: { uid: string; isProvider: boolean
         {b.status === "completed" && b.customer_confirmed_at && b.provider_confirmed_at && <small className="muted">✓ Both confirmed{ext ? "" : isProvider ? " - payment sent to your wallet" : " - payment released to the barber"}</small>}
         {isProvider && b.status === "pending" && <><button className="btn sm" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "accepted" }))}>Accept</button><button className="btn sm ghost" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "rejected" }))}>Reject</button></>}
         {!isProvider && b.status === "pending" && <button className="btn sm ghost" onClick={() => run(b.id, rpc("update_booking_status", { p_booking_id: b.id, p_new_status: "cancelled" }))}>Cancel</button>}
-        {canSwitch && <button className="btn sm ghost" disabled={busy === b.id} onClick={() => run(b.id, rpc("set_payment_method", { p_booking: b.id, p_method: ext ? "in_app" : "external" }))}>{ext ? "Switch to pay in the app" : "Switch to pay outside the app"}</button>}
       </div></div>);
     })}
   </>);
