@@ -55,7 +55,6 @@ export function ClientReview({ uid, p, s, at, back, done }: { uid: string; p: an
     {loc === "home" && <input placeholder="Your address" value={addr} onChange={(e) => setAddr(e.target.value)} />}
     <div className="card"><div className="row"><span>{s.name}</span><span>{money(s.price, s.currency_code)}</span></div>{loc === "home" && Number(p.travel_fee) > 0 && <div className="row"><small>Travel fee added at confirmation</small></div>}</div>
     <h3>Payment</h3>
-    <div className="tabs"><button type="button" className="on">Pay in the app</button></div>
     <p className="muted">You pay in the app after the barber accepts. Your payment is held securely until you and the barber both confirm the haircut is done, then it goes to the barber's wallet.</p>{err && <p className="note err">{err}</p>}<button className="btn" disabled={busy} onClick={book}>Send booking request</button></>);
 }
 
